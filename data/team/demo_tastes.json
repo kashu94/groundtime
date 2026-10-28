@@ -1,0 +1,41 @@
+{
+  "note": "Demo taste profiles for crew on the seed week's Delhi night stops. Every pick is a Qloo id from Qloo's own catalogue. Loaded with python -m crewops.taste.load_demo; a crew member replaces theirs on the Crew page.",
+  "profiles": [
+    {
+      "crew_id": "C-1042",
+      "loves": [
+        {"id": "9986F595-C20E-4EBB-828F-55E7DEEBE448", "name": "A.R. Rahman", "type": "urn:entity:artist"},
+        {"id": "3A923B32-FCEA-4060-8609-8895309F7B80", "name": "Lagaan: Once Upon a Time in India", "type": "urn:entity:movie"},
+        {"id": "urn:tag:cuisine:qloo:south_indian", "name": "South Indian", "type": "urn:tag"}
+      ],
+      "dietary": ["vegetarian"],
+      "wind_down": "quiet"
+    },
+    {
+      "crew_id": "C-1694",
+      "loves": [
+        {"id": "F74BAA1D-6C16-4EED-9BD7-304FB321A0A2", "name": "The God of Small Things", "type": "urn:entity:book"},
+        {"id": "CFB97CDA-1B2D-4F1A-B707-415E76AFC016", "name": "Norah Jones", "type": "urn:entity:artist"},
+        {"id": "urn:tag:genre:place:restaurant:cafe", "name": "Cafe", "type": "urn:tag"}
+      ],
+      "wind_down": "quiet"
+    },
+    {
+      "crew_id": "C-3005",
+      "loves": [
+        {"id": "924C8504-4BD8-4615-AB2D-1C16880A8A62", "name": "Arijit Singh", "type": "urn:entity:artist"},
+        {"id": "CE300FA0-0752-4DD3-B28F-FC4CFD2D8915", "name": "3 Idiots", "type": "urn:entity:movie"},
+        {"id": "9986F595-C20E-4EBB-828F-55E7DEEBE448", "name": "A.R. Rahman", "type": "urn:entity:artist"}
+      ],
+      "dietary": ["jain"]
+    },
+    {
+      "crew_id": "C-4395",
+      "loves": [
+        {"id": "7FA6EFBE-D261-4003-9EFA-4C4CA2BCEC07", "name": "Panchayat", "type": "urn:entity:tv_show"},
+        {"id": "urn:tag:specialty_dish:place:biryani", "name": "Biryani", "type": "urn:tag"}
+      ],
+      "wind_down": "lively"
+    }
+  ]
+}
