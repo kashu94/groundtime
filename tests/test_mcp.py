@@ -472,7 +472,7 @@ def test_alert_tools_are_for_admins(api):
     from crewops.notify.subscriptions import AlertSubscriptions
 
     sns = boto3.client("sns", region_name="us-east-1")
-    topic = sns.create_topic(Name="crewops-qloo-test-alerts")["TopicArn"]
+    topic = sns.create_topic(Name="groundtime-test-alerts")["TopicArn"]
     api.alerts = AlertSubscriptions(sns, topic, api.table)
     admin = Caller("asha", frozenset({Role.ADMIN}))
     added = api.add_alert_address(admin, "ops@example.com", "approver")
@@ -563,11 +563,11 @@ def test_a_failing_tool_reports_no_internals(api, monkeypatch):
 def test_invocation_url_encodes_the_runtime_arn():
     from crewops.mcp.client import invocation_url
 
-    arn = "arn:aws:bedrock-agentcore:us-east-1:111111111111:runtime/crewops_qloo_dev_mcp-AbC"
+    arn = "arn:aws:bedrock-agentcore:us-east-1:111111111111:runtime/groundtime_dev_mcp-AbC"
     assert invocation_url("us-east-1", arn) == (
         "https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/"
         "arn%3Aaws%3Abedrock-agentcore%3Aus-east-1%3A111111111111%3Aruntime%2F"
-        "crewops_qloo_dev_mcp-AbC/invocations?qualifier=DEFAULT"
+        "groundtime_dev_mcp-AbC/invocations?qualifier=DEFAULT"
     )
 
 

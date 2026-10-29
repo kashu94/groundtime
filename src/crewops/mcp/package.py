@@ -26,7 +26,7 @@ PLATFORM = "aarch64-manylinux2014"
 MAX_BYTES = 750 * 1024 * 1024
 """AgentCore's limit for an unzipped code package."""
 
-MAIN = '''"""Entry point AgentCore runs: the CrewOps MCP server on 0.0.0.0:8000/mcp."""
+MAIN = '''"""Entry point AgentCore runs: the Groundtime MCP server on 0.0.0.0:8000/mcp."""
 
 import os
 from pathlib import Path
@@ -95,6 +95,8 @@ def build(out: Path = OUT) -> Path:
     )
     (out / "data" / "eval").mkdir(parents=True)
     shutil.copy2(ROOT / "data" / "eval" / "questions.json", out / "data" / "eval")
+    (out / "data" / "team").mkdir(parents=True)
+    shutil.copy2(ROOT / "data" / "team" / "demo_travellers.json", out / "data" / "team")
     (out / "main.py").write_text(MAIN, encoding="utf-8")
     _tidy(out)
     size = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())

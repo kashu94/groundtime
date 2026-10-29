@@ -29,6 +29,7 @@ from crewops.analysis.runner import (
     OPEN_STATUSES,
     UNAVAILABLE_STATUSES,
     absences_from,
+    operation_now,
 )
 from crewops.analysis.severity import severity
 from crewops.auth.accounts import AccountError, Accounts, may_reset, new_password
@@ -49,6 +50,7 @@ from crewops.plans.service import summary as plan_summary
 from crewops.store import plans as plan_store
 from crewops.store import rules as rule_store
 from crewops.store import security as security_store
+from crewops.store import taste as taste_store
 from crewops.store.items import from_dynamo
 from crewops.store.reports import (
     add_suggestion,
@@ -63,6 +65,11 @@ from crewops.store.reports import (
     suggestions_for,
 )
 from crewops.store.users import get_profile, list_profiles
+from crewops.taste.concierge import Concierge
+from crewops.taste.layover import layover_brief, night_stops
+from crewops.taste.profile import ProfileError, TasteProfile
+from crewops.taste.qloo import QlooClient, QlooError
+from crewops.taste.service import Groundtime, GroundtimeError
 from crewops.tools import TOOL_SCHEMAS, Caller, allowed_tools, dispatch
 from crewops.tools.errors import INTERNAL
 
@@ -219,12 +226,19 @@ class CrewOpsApi:
         memory: ConversationMemory | None = None,
         alerts: AlertSubscriptions | None = None,
         accounts: Accounts | None = None,
+        qloo: QlooClient | None = None,
+        concierge_model: tuple[Any, str] | None = None,
+        groundtime: Groundtime | None = None,
     ) -> None:
         """``live_factory`` builds the answer pipeline over the current operation
         (``agent.service.build``); ``send`` puts a report on the ingest queue. Without
         ``memory`` every question stands on its own; without ``alerts`` the alert tools
-        say alerts are not set up."""
+        say alerts are not set up. ``qloo`` turns on Groundtime and layover care;
+        ``concierge_model`` is the (Bedrock client, model id) the traveller's agent uses."""
         self.table = table
+        self.qloo = qloo
+        self._groundtime = groundtime
+        self._concierge_model = concierge_model
         self.accounts = accounts
         self._feed_cache: dict[tuple[str, int], tuple[float, list[dict]]] = {}
         self.live_factory = live_factory
@@ -290,6 +304,8 @@ class CrewOpsApi:
         if caller.roles <= {Role.SPEAKER}:
             # A speaker device hears alert briefs; questions are for people.
             raise ApiError("FORBIDDEN", "a speaker device does not ask questions")
+        if Role.TRAVELLER in caller.roles:
+            return self.groundtime_ask(caller, question)
         if conversation_id and not valid_conversation(conversation_id):
             raise ApiError(
                 "INVALID",
@@ -1159,7 +1175,7 @@ class CrewOpsApi:
 
     def still_here(self, caller: Caller) -> dict:
         """A controller's or approver's open console says so now and then, so "while you
-        were away" starts when they last had CrewOps open, not when they last signed in."""
+        were away" starts when they last had Groundtime open, not when they last signed in."""
         if self._scope_of(caller) is not None:
             mark_seen(self.table, caller.user_id, self.clock())
         return {"ok": True}
@@ -1492,3 +1508,126 @@ class CrewOpsApi:
 
     def return_resolution(self, caller: Caller, disruption_id: str, reason: str) -> dict[str, Any]:
         return self._plan_action(self.plans.return_resolution, caller, disruption_id, reason)
+
+    # ------------------------------------------------------------------
+    # Groundtime (passengers) and layover care (crew), with Qloo
+    # ------------------------------------------------------------------
+
+    def _now(self) -> datetime:
+        """Real time when deployed; the seed's own moment in tests and local runs."""
+        world = self.live().pipeline.tools.world
+        return operation_now() or world.snapshot_utc
+
+    def groundtime(self) -> Groundtime:
+        if self._groundtime is None:
+            if self.qloo is None:
+                raise ApiError("UNAVAILABLE", "Groundtime needs the Qloo API, not set up here")
+            self._groundtime = Groundtime(
+                self.table,
+                self.qloo,
+                lambda: self.live().pipeline.tools.world.flights,
+                clock=self._now,
+            )
+        return self._groundtime
+
+    def _taste_call(self, call: Callable[[], Any]) -> Any:
+        try:
+            return call()
+        except GroundtimeError as exc:
+            raise ApiError(exc.code, exc.message) from None
+        except ProfileError as exc:
+            raise ApiError("INVALID", str(exc)) from None
+        except QlooError as exc:
+            raise ApiError(exc.code, exc.message) from None
+
+    @staticmethod
+    def _traveller(caller: Caller) -> None:
+        if Role.TRAVELLER not in caller.roles:
+            raise ApiError("FORBIDDEN", "Groundtime plans are for travellers with a booking")
+
+    def my_groundtime(self, caller: Caller, position: str = "") -> dict[str, Any]:
+        self._traveller(caller)
+        return self._taste_call(lambda: self.groundtime().my_plan(caller.user_id, position))
+
+    def groundtime_ask(self, caller: Caller, question: str) -> dict[str, Any]:
+        self._traveller(caller)
+        client, model_id = self._concierge_model or (None, None)
+        concierge = Concierge(self.groundtime(), client, model_id)
+        answer = self._taste_call(lambda: concierge.ask(caller.user_id, question))
+        return answer.to_dict() | {
+            "awaiting": None,
+            "intent": "groundtime",
+            "models": MODEL_BREAKER.status(),
+        }
+
+    def _taste_owner(self, caller: Caller) -> str:
+        if Role.TRAVELLER in caller.roles:
+            return self.groundtime().traveller(caller.user_id).traveller_id
+        if Role.CREW in caller.roles and caller.crew_id:
+            return caller.crew_id
+        raise ApiError("FORBIDDEN", "taste profiles are for travellers and crew")
+
+    def my_taste(self, caller: Caller) -> dict[str, Any]:
+        def get() -> dict[str, Any]:
+            if Role.TRAVELLER in caller.roles:
+                return self.groundtime().my_taste(caller.user_id)
+            owner = self._taste_owner(caller)
+            saved = taste_store.profile_of(self.table, owner)
+            return (saved or TasteProfile(owner)).to_dict()
+
+        return self._taste_call(get)
+
+    def save_my_taste(self, caller: Caller, profile: Mapping[str, Any]) -> dict[str, Any]:
+        def save() -> dict[str, Any]:
+            if Role.TRAVELLER in caller.roles:
+                return self.groundtime().save_my_taste(caller.user_id, profile)
+            owner = self._taste_owner(caller)
+            parsed = TasteProfile.from_dict(owner, profile)
+            return taste_store.save_profile(self.table, parsed, self.clock()).to_dict()
+
+        return self._taste_call(save)
+
+    def taste_search(self, caller: Caller, query: str, kind: str) -> list[dict[str, Any]]:
+        self._taste_owner(caller)
+        return self._taste_call(lambda: self.groundtime().search(query, kind))
+
+    def _care(self, caller: Caller) -> None:
+        if not caller.roles & (READERS | {Role.CUSTOMER_CARE}):
+            raise ApiError("FORBIDDEN", "for customer care and the operations staff")
+
+    def delayed_flights(self, caller: Caller) -> list[dict[str, Any]]:
+        self._care(caller)
+        return self._taste_call(lambda: self.groundtime().delayed_flights())
+
+    def flight_care(self, caller: Caller, flight_id: str) -> dict[str, Any]:
+        self._care(caller)
+        return self._taste_call(lambda: self.groundtime().flight_care(flight_id))
+
+    def my_layover(self, caller: Caller, pairing_id: str = "") -> dict[str, Any]:
+        """Crew: their own next night stop. Staff: a pairing's, never whose diet is whose."""
+        crew = Role.CREW in caller.roles
+        if not crew and not caller.roles & (READERS | {Role.CUSTOMER_CARE}):
+            raise ApiError("FORBIDDEN", "layover briefs are for crew and operations staff")
+        if self.qloo is None:
+            raise ApiError("UNAVAILABLE", "layover care needs the Qloo API, not set up here")
+        world = self.live().pipeline.tools.world
+        now = self._now()
+        if crew:
+            stops = night_stops(world, crew_id=caller.crew_id)
+        elif pairing_id:
+            if pairing_id not in world.pairings:
+                raise ApiError("NOT_FOUND", f"no pairing {pairing_id}")
+            stops = night_stops(world, pairing_id=pairing_id)
+        else:
+            raise ApiError("INVALID", "name the pairing")
+        upcoming = [s for s in stops if s.next_report_utc > now]
+        if not upcoming:
+            return {"night_stop": None, "note": "No night stop ahead on the roster."}
+        stop = upcoming[0]
+        ids = [caller.crew_id] if crew and caller.crew_id else list(stop.crew_ids)
+        profiles = taste_store.profiles_of(self.table, ids)
+        min_rest = world.book.min_rest_hours
+        brief = self._taste_call(
+            lambda: layover_brief(stop, profiles, self.qloo, min_rest_hours=min_rest)
+        )
+        return brief.to_dict(for_crew=crew)

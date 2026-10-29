@@ -29,18 +29,24 @@ from crewops.tools import Caller
 log = logging.getLogger(__name__)
 
 INSTRUCTIONS = """\
-CrewOps answers airline crew-control questions from the live roster, with every figure
-checked against the legality engine. Use `ask` for questions in plain words ("who covers
-C-1042 tomorrow?"), with one `conversation_id` per conversation. Use `my_queue` for what is
-waiting for the signed-in person. Plans are submitted by a controller and approved by a
-different person; approving commits the roster.
+Groundtime turns waiting time into time well spent. For a traveller, `my_groundtime` is their
+wait (a delay or a connection) and a plan for it: places and films picked by Qloo for their
+taste, each checked for opening hours, dietary needs and getting back to the gate in time.
+Crew get the same care on a layover (`my_layover`), within their rest rules. Customer care
+sees every delayed flight's travellers (`delayed_flights`, `flight_care`).
+Behind it runs crew control: `ask` answers crew-control questions in plain words from the
+live roster, every figure checked against the legality engine; `my_queue` is what is waiting
+for the signed-in person; plans are submitted by a controller and approved by a different
+person. For a traveller, `ask` is their Groundtime concierge.
 The tools available depend on the signed-in user's role."""
 
 READ = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False)
 COMMIT = ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False)
 OUTWARD = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=True)
-"""Reaches outside CrewOps (SNS emails the address)."""
+"""Reaches outside Groundtime (SNS emails the address)."""
+QLOO = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
+"""Reads only, but asks Qloo, outside Groundtime (with ids and places, never a person)."""
 
 
 class Gate:
@@ -69,7 +75,7 @@ def build_server(
     api: CrewOpsApi, gate: Gate, *, host: str = "127.0.0.1", port: int = 8000
 ) -> FastMCP:
     mcp = FastMCP(
-        "CrewOps",
+        "Groundtime",
         instructions=INSTRUCTIONS,
         host=host,
         port=port,
@@ -241,6 +247,59 @@ def build_server(
         "P-2291/Captain/C-1042"). The owning desk sees it and may adopt it; it plans nothing."""
         return await run(ctx, lambda c: api.suggest(c, disruption_id, seat, crew_id, note))
 
+    @mcp.tool(annotations=QLOO)
+    async def my_groundtime(ctx: Context, position: str = "") -> dict:
+        """Traveller: your wait and the plan for it. `position` is where you are: away (not
+        at the airport yet), landside (at the terminal, before security) or airside (past
+        security, where nobody may leave). Places and films come from Qloo for your taste;
+        every stop is checked for opening hours, your dietary needs and getting back in
+        time."""
+        return await run(ctx, lambda c: api.my_groundtime(c, position))
+
+    @mcp.tool(annotations=READ)
+    async def my_taste(ctx: Context) -> dict:
+        """Traveller or crew: the things you love and your dietary needs, as you saved them."""
+        return await run(ctx, lambda c: api.my_taste(c))
+
+    @mcp.tool(annotations=WRITE)
+    async def save_my_taste(
+        ctx: Context,
+        loves: list[dict] | None = None,
+        dietary: list[str] | None = None,
+        wind_down: str = "",
+    ) -> dict:
+        """Traveller or crew: save up to five things you love (each an id from
+        `taste_search`: {"id", "name", "type"}), dietary needs (vegetarian, vegan, jain,
+        halal, gluten_free) and, for crew, wind_down (quiet or lively). Replaces the profile."""
+        body = {"loves": loves or [], "dietary": dietary or [], "wind_down": wind_down or None}
+        return await run(ctx, lambda c: api.save_my_taste(c, body))
+
+    @mcp.tool(annotations=QLOO)
+    async def taste_search(query: str, kind: str, ctx: Context) -> list:
+        """Traveller or crew: find something you love in Qloo's catalogue. kind is one of
+        urn:entity:artist, urn:entity:movie, urn:entity:tv_show, urn:entity:book,
+        urn:entity:podcast or urn:entity:place."""
+        return await run(ctx, lambda c: api.taste_search(c, query, kind))
+
+    @mcp.tool(annotations=QLOO)
+    async def my_layover(ctx: Context, pairing_id: str = "") -> dict:
+        """Crew: places to eat near the crew hotel on your next night stop, within your rest
+        (free time, sleep before the next report). Staff: name the pairing; the brief never
+        says whose dietary needs are whose."""
+        return await run(ctx, lambda c: api.my_layover(c, pairing_id))
+
+    @mcp.tool(annotations=READ)
+    async def delayed_flights(ctx: Context) -> list:
+        """Customer care and operations staff: delayed flights still to leave, with how many
+        are booked and how many have Groundtime."""
+        return await run(ctx, lambda c: api.delayed_flights(c))
+
+    @mcp.tool(annotations=QLOO)
+    async def flight_care(flight_id: str, ctx: Context) -> dict:
+        """Customer care and operations staff: every Groundtime traveller waiting for a
+        flight (e.g. KS434-2026-10-13), with their plan; dietary needs show only as met."""
+        return await run(ctx, lambda c: api.flight_care(c, flight_id))
+
     @mcp.tool(annotations=READ)
     async def my_roster(ctx: Context) -> dict:
         """Crew: your own pairings, duty days and duty clock."""
@@ -353,13 +412,17 @@ def from_environment(host: str = "127.0.0.1") -> FastMCP:
     """The deployed server: settings from the environment the stack sets."""
     import boto3
 
+    from crewops.agent.breaker import MODEL_BREAKER, GuardedClient
     from crewops.agent.memory import ConversationMemory, memory_client
+    from crewops.agent.models import bedrock_runtime
     from crewops.agent.service import build
     from crewops.auth.accounts import Accounts
     from crewops.config import Settings
     from crewops.notify.subscriptions import AlertSubscriptions
     from crewops.store.ops_store import table_for
+    from crewops.store.taste import TableCache
     from crewops.store.users import get_profile
+    from crewops.taste.qloo import client_from_settings
 
     settings = Settings.from_env()
     if not (settings.issuer and settings.user_pool_client_id and settings.ingest_queue_url):
@@ -385,6 +448,8 @@ def from_environment(host: str = "127.0.0.1") -> FastMCP:
         else None
     )
     accounts = Accounts(session.client("cognito-idp"), settings.user_pool_id or "")
+    qloo = client_from_settings(settings, cache=TableCache(table), session=session)
+    concierge = GuardedClient(bedrock_runtime(settings.aws_region, 15.0), MODEL_BREAKER)
     api = CrewOpsApi(
         table,
         lambda: build(settings, table),
@@ -392,6 +457,8 @@ def from_environment(host: str = "127.0.0.1") -> FastMCP:
         memory=memory,
         alerts=alerts,
         accounts=accounts,
+        qloo=qloo,
+        concierge_model=(concierge, settings.advisor_model_id),
     )
     gate = Gate(
         TokenVerifier(settings.issuer, settings.user_pool_client_id),

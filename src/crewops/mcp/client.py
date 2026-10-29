@@ -72,6 +72,8 @@ async def call(url: str, token: str, tool: str | None, arguments: dict[str, Any]
 LIST_TOOLS = frozenset(
     {
         "my_queue",
+        "delayed_flights",
+        "taste_search",
         "alert_addresses",
         "list_crew_tools",
         "rule_thresholds",
