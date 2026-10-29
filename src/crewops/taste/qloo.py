@@ -37,10 +37,13 @@ log = logging.getLogger(__name__)
 ALLOWED_PARAM = re.compile(
     r"^(filter|signal|bias|operator|feature)\.[a-z_.]+$|^(query|types|take|page|sort_by)$"
 )
-"""The request parameters any CrewOps feature needs. Anything else is a bug or an injection."""
+"""The request parameters any Groundtime feature needs. Anything else is a bug or an injection."""
 
-PERSONAL = re.compile(r"\bC-\d{3,5}\b|[\w.+-]+@[\w-]+\.[\w.]+|\bu-\d+\b", re.IGNORECASE)
-"""Crew ids (C-1042), email addresses and user ids. None of these may reach Qloo."""
+PERSONAL = re.compile(
+    r"\bC-\d{3,5}\b|\bTR-\d{3,6}\b|[\w.+-]+@[\w-]+\.[\w.]+|\bu-\d+\b", re.IGNORECASE
+)
+"""Crew ids (C-1042), traveller ids (TR-1001), email addresses and user ids. None of these
+may reach Qloo."""
 
 MAX_TAKE = 25
 TIMEOUT_SECONDS = 12.0
@@ -112,7 +115,7 @@ def guard(params: Mapping[str, Any]) -> dict[str, str]:
         if value is None or value == "":
             continue
         if not ALLOWED_PARAM.match(key):
-            raise QlooError("QLOO_REFUSED", f"parameter {key!r} is not one CrewOps sends")
+            raise QlooError("QLOO_REFUSED", f"parameter {key!r} is not one Groundtime sends")
         text = ",".join(str(v) for v in value) if isinstance(value, list | tuple) else str(value)
         if PERSONAL.search(text):
             raise QlooError("QLOO_REFUSED", f"{key} looks like it carries personal data")

@@ -1,0 +1,53 @@
+{
+  "note": "Demo passengers. Each books flight numbers, not dates: a trip is on the day the flight next operates, so the demo works on any day of the calendar. Taste is opt-in and every pick is a Qloo id. In production the bookings come from the airline's reservation system.",
+  "travellers": [
+    {
+      "traveller_id": "TR-1001",
+      "username": "tr1001.kapoor",
+      "name": "Aarav Kapoor",
+      "flights": ["KS434"],
+      "position": "away",
+      "taste": {
+        "loves": [
+          {"id": "9986F595-C20E-4EBB-828F-55E7DEEBE448", "name": "A.R. Rahman", "type": "urn:entity:artist"},
+          {"id": "3A923B32-FCEA-4060-8609-8895309F7B80", "name": "Lagaan: Once Upon a Time in India", "type": "urn:entity:movie"}
+        ],
+        "dietary": ["vegetarian"]
+      }
+    },
+    {
+      "traveller_id": "TR-1002",
+      "username": "tr1002.fernandes",
+      "name": "Sara Fernandes",
+      "flights": ["KS434"],
+      "position": "airside",
+      "taste": {
+        "loves": [
+          {"id": "F74BAA1D-6C16-4EED-9BD7-304FB321A0A2", "name": "The God of Small Things", "type": "urn:entity:book"},
+          {"id": "CFB97CDA-1B2D-4F1A-B707-415E76AFC016", "name": "Norah Jones", "type": "urn:entity:artist"}
+        ]
+      }
+    },
+    {
+      "traveller_id": "TR-1003",
+      "username": "tr1003.shah",
+      "name": "Meher Shah",
+      "flights": ["KS432", "KS588"],
+      "position": "airside",
+      "taste": {
+        "loves": [
+          {"id": "924C8504-4BD8-4615-AB2D-1C16880A8A62", "name": "Arijit Singh", "type": "urn:entity:artist"},
+          {"id": "CE300FA0-0752-4DD3-B28F-FC4CFD2D8915", "name": "3 Idiots", "type": "urn:entity:movie"}
+        ],
+        "dietary": ["jain"]
+      }
+    },
+    {
+      "traveller_id": "TR-1004",
+      "username": "tr1004.das",
+      "name": "Rahul Das",
+      "flights": ["KS434"],
+      "position": "landside"
+    }
+  ]
+}

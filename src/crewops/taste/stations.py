@@ -1,8 +1,10 @@
-"""Where crews stay at each station, and how far they will go from there.
+"""Where crews stay at each station, where passengers wait, and how far either will go.
 
 One crew hotel area per station: the point layover searches start from, the time the hotel
-transfer takes each way, and the local clock. Every station in the network is in India, so
-local time is IST (UTC+05:30, no daylight saving) and no time zone database is needed.
+transfer takes each way, and the local clock. One terminal per station for passengers, with
+the times a passenger must allow to get out and back in. Every station in the network is in
+India, so local time is IST (UTC+05:30, no daylight saving) and no time zone database is
+needed.
 """
 
 from __future__ import annotations
@@ -49,3 +51,51 @@ CREW_HOTELS: dict[str, CrewHotel] = {
 
 def hotel_at(station: str) -> CrewHotel | None:
     return CREW_HOTELS.get(station.upper())
+
+
+@dataclass(frozen=True, slots=True)
+class Airport:
+    """The domestic terminal at a station, and the times a passenger has to allow there.
+
+    Every flight in the network is domestic, so no visa or immigration applies. What decides
+    whether a passenger may leave is security: once screened they are airside, and Indian
+    airports do not let them walk back out.
+    """
+
+    station: str
+    city: str
+    name: str
+    lat: float
+    lon: float
+    city_radius_m: int = 12000
+    """How far a city outing may go from the terminal."""
+    exit_minutes: int = 30
+    """From reaching the terminal door to a cab or the arrivals kerb, or from the gate out."""
+    security_minutes: int = 45
+    """Bag drop and security, from the terminal door to airside."""
+    gate_close_minutes: int = 25
+    """Boarding gate closes this long before departure."""
+    tz: timezone = IST
+
+    @property
+    def point(self) -> str:
+        return f"POINT({self.lon} {self.lat})"
+
+
+AIRPORTS: dict[str, Airport] = {
+    a.station: a
+    for a in (
+        Airport("BLR", "Bengaluru", "Kempegowda International, Terminal 1", 13.1989, 77.7069),
+        Airport("BOM", "Mumbai", "Chhatrapati Shivaji Maharaj International, T2", 19.0989, 72.8740),
+        Airport("CCU", "Kolkata", "Netaji Subhas Chandra Bose International", 22.6533, 88.4467),
+        Airport("COK", "Kochi", "Cochin International, Terminal 1", 10.1556, 76.3913),
+        Airport("DEL", "New Delhi", "Indira Gandhi International, Terminal 1", 28.5652, 77.1196),
+        Airport("GOI", "Goa", "Dabolim", 15.3808, 73.8314, city_radius_m=15000),
+        Airport("HYD", "Hyderabad", "Rajiv Gandhi International", 17.2403, 78.4294),
+        Airport("MAA", "Chennai", "Chennai International, Terminal 1", 12.9814, 80.1638),
+    )
+}
+
+
+def airport_at(station: str) -> Airport | None:
+    return AIRPORTS.get(station.upper())

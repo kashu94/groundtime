@@ -32,6 +32,7 @@ Desktop alerts (web push)       PUSH / endpoint-hash
 Report as filed by its sender   USER#username / FILED#at#id  FILED / at#id
 Roster version                  CREW#id / ROSTER_VERSION
 Crew taste profile (opt-in)     CREW#id / TASTE
+Traveller taste profile         TRAVELLER#id / TASTE
 Qloo answer, cached a day       QLOO / request-hash
 Alert address                   ALERTS / SUB#id
 Alert addresses added in a day  ALERTS / DAY#yyyy-mm-dd

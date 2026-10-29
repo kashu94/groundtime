@@ -1,6 +1,7 @@
-"""Crew taste profiles and the Qloo answer cache.
+"""Crew and traveller taste profiles, and the Qloo answer cache.
 
     CREW#id / TASTE            loves, dietary, wind_down, updated_utc
+    TRAVELLER#id / TASTE       the same, for a passenger (ids TR-...)
     QLOO / <request hash>      body (zlib JSON), expires_at
 
 A profile is written only by its crew member, through the server. The cache holds Qloo's
@@ -28,8 +29,10 @@ MAX_CACHED_BYTES = 350_000
 """DynamoDB items stop at 400 KB. A larger answer is simply not cached."""
 
 
-def _key(crew_id: str) -> dict[str, str]:
-    return {schema.PK: f"CREW{S}{crew_id}", schema.SK: "TASTE"}
+def _key(owner_id: str) -> dict[str, str]:
+    """A crew member's profile, or a traveller's (``TR-...``)."""
+    kind = "TRAVELLER" if owner_id.startswith("TR-") else "CREW"
+    return {schema.PK: f"{kind}{S}{owner_id}", schema.SK: "TASTE"}
 
 
 def save_profile(table: Any, profile: TasteProfile, at: datetime) -> TasteProfile:
