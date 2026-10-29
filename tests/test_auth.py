@@ -185,7 +185,7 @@ class FakeCognito:
         return {
             "UserPools": [
                 {"Name": "other", "Id": "x"},
-                {"Name": "crewops-qloo-test-users", "Id": POOL},
+                {"Name": "groundtime-test-users", "Id": POOL},
             ]
         }
 
@@ -255,10 +255,12 @@ def test_sync_creates_then_changes_nothing(ops_table):
     plan = plan_team(cognito, POOL, ops_table, team, password)
     assert asked == []  # nothing is asked for until a step runs
     apply(plan)
-    assert len(cognito.users) == len(team) == 23 and set(cognito.passwords.values()) == {
+    assert len(cognito.users) == len(team) == 28 and set(cognito.passwords.values()) == {
         "Correct-Horse-9"
     }
     assert cognito.groups["ananya.iyer"] == {"controller"}
+    assert cognito.groups["tr1001.kapoor"] == {"traveller"}
+    assert cognito.groups["neha.joshi"] == {"customer_care"}
     assert get_profile(ops_table, "c1042.nair")["crew_id"] == "C-1042"
     assert get_profile(ops_table, "ananya.iyer")["desk"] == "desk-1"
     again = plan_team(cognito, POOL, ops_table, team, password)
@@ -337,9 +339,9 @@ def test_password_policy_and_pool_lookup():
     assert password_problems("Correct-Horse-9") == []
     assert password_problems("Correct Horse-9") == []  # an inner space is a symbol to Cognito
     assert "a symbol" in password_problems("CorrectHorse99")
-    assert find_user_pool(FakeCognito(), "crewops-qloo-test-users") == POOL
+    assert find_user_pool(FakeCognito(), "groundtime-test-users") == POOL
     assert find_user_pool(FakeCognito(), "missing") is None
-    assert find_user_pool(FakeCognito(), "crewops-qloo-test-users", from_stack="p-1") == "p-1"
+    assert find_user_pool(FakeCognito(), "groundtime-test-users", from_stack="p-1") == "p-1"
 
 
 def test_two_pools_with_one_name_is_an_error():
@@ -347,10 +349,10 @@ def test_two_pools_with_one_name_is_an_error():
 
     class Twins(FakeCognito):
         def list_user_pools(self, MaxResults, NextToken=None):  # noqa: N803
-            return {"UserPools": [{"Name": "crewops-qloo-test-users", "Id": i} for i in ("a", "b")]}
+            return {"UserPools": [{"Name": "groundtime-test-users", "Id": i} for i in ("a", "b")]}
 
     with pytest.raises(ProvisionError, match="2 user pools"):
-        find_user_pool(Twins(), "crewops-qloo-test-users")
+        find_user_pool(Twins(), "groundtime-test-users")
 
 
 def test_role_combinations_and_name_forms(seed):

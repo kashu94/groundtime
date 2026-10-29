@@ -1,5 +1,5 @@
 {
-  "note": "The demo team. Usernames and roles only: no email, phone or password is stored here. Crew members are linked to their roster records by crew id; controllers to their desk.",
+  "note": "The demo team, and the demo passengers (their bookings are in demo_travellers.json). Usernames and roles only: no email, phone or password is stored here. Crew members are linked to their roster records by crew id; controllers to their desk.",
   "members": [
     {"username": "ananya.iyer", "name": "Ananya Iyer", "roles": ["controller"], "desk": "desk-1"},
     {"username": "rohit.malhotra", "name": "Rohit Malhotra", "roles": ["controller"], "desk": "desk-2"},
@@ -23,6 +23,11 @@
     {"username": "c1385.menon", "name": "D. Menon", "roles": ["crew"], "crew_id": "C-1385"},
     {"username": "c3231.verma", "name": "L. Verma", "roles": ["crew"], "crew_id": "C-3231"},
     {"username": "c1313.chandra", "name": "K. Chandra", "roles": ["crew"], "crew_id": "C-1313"},
+    {"username": "neha.joshi", "name": "Neha Joshi", "roles": ["customer_care"]},
+    {"username": "tr1001.kapoor", "name": "Aarav Kapoor", "roles": ["traveller"]},
+    {"username": "tr1002.fernandes", "name": "Sara Fernandes", "roles": ["traveller"]},
+    {"username": "tr1003.shah", "name": "Meher Shah", "roles": ["traveller"]},
+    {"username": "tr1004.das", "name": "Rahul Das", "roles": ["traveller"]},
     {"username": "ops.speaker", "name": "Ops Room Speaker", "roles": ["speaker"]}
   ]
 }

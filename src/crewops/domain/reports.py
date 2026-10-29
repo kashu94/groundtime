@@ -47,6 +47,10 @@ class Role(StrEnum):
     SUPER_ADMIN = "super_admin"
     SPEAKER = "speaker"
     """Desk or ops-room speaker. A device, not a person; it only gets alert briefs."""
+    TRAVELLER = "traveller"
+    """A passenger with a booking: their own wait and Groundtime plan, nothing else."""
+    CUSTOMER_CARE = "customer_care"
+    """Looks after waiting passengers: delayed flights and every traveller's plan."""
 
 
 class ReportType(StrEnum):
