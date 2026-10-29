@@ -287,11 +287,11 @@ export function NoticeList({ notices }: { notices: TeamNotice[] }) {
                     n.channel === "in_app" ? "bg-accent-soft text-[#173f63]" : "bg-sunken text-muted",
                   )}
                   title={
-                    n.channel === "in_app" ? "Shown on their CrewOps page" : "Emailed to the team's alert addresses"
+                    n.channel === "in_app" ? "Shown on their Groundtime page" : "Emailed to the team's alert addresses"
                   }
                 >
                   {n.channel === "in_app" ? <Smartphone size={11} /> : <Mail size={11} />}
-                  {n.channel === "in_app" ? "in CrewOps" : "email"}
+                  {n.channel === "in_app" ? "in Groundtime" : "email"}
                 </span>
               </div>
               <p className="mt-1.5 text-xs font-medium text-foreground">To {n.why}.</p>

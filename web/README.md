@@ -1,10 +1,14 @@
-# CrewOps web app
+# Groundtime web app
 
-The assistant, the controller and approver console, the crew phone view and the admin
-alerts page. Next.js 16 (App Router), TypeScript and Tailwind.
+Groundtime turns every hour on the ground into one worth having: when a flight is delayed
+or a connection is long, each passenger's and crew member's safe free time is planned with
+Qloo and checked (opening hours, dietary needs, back at the gate in time). This app holds
+the passenger's trip page, customer care's view of every delayed flight, the assistant, and
+crew control's console, approvals, crew phone view and admin pages. Next.js 16 (App
+Router), TypeScript and Tailwind.
 
 The browser calls no AWS API except the live-events socket. Every action goes to this
-app's server routes, which forward it to the CrewOps MCP server on AgentCore as the
+app's server routes, which forward it to the Groundtime MCP server on AgentCore as the
 signed-in user. Tokens stay in httpOnly cookies; only the live-events socket gets the ID
 token.
 
@@ -39,9 +43,11 @@ npm run build
 ```
 app/
   login/               Sign-in
+  (app)/trip/          A passenger's wait, planned: flight, stops, films, taste picker
+  (app)/care/          Customer care: delayed flights and every passenger's plan
   (app)/console/       Waiting work, live status feed, a disruption's plans and actions
   (app)/assistant/     The assistant: talk or type, spoken answers, follow-ups
-  (app)/crew/          Crew phone view: my hours, report unavailable
+  (app)/crew/          Crew phone view: my hours, report unavailable, layover care
   (app)/admin/         Alert addresses (admins)
   api/                 Sign-in, the MCP tool proxy, live-events token, speech
 components/            Shell, signed-in user, small UI pieces

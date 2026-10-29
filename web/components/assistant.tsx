@@ -27,6 +27,7 @@ const SOURCE: Record<string, string> = {
   template: "From the engine",
   explained: "Reworded, every fact kept",
   model: "Model answer, verified",
+  plan: "From your plan",
   clarify: "Question back",
   refused: "Refused",
   smalltalk: "Conversation",
@@ -47,7 +48,7 @@ function newConversation() {
   return `web-${crypto.randomUUID()}`;
 }
 
-/** Fourteen bars that breathe while CrewOps listens or thinks. */
+/** Fourteen bars that breathe while Groundtime listens or thinks. */
 function Waveform({ active, tone }: { active: boolean; tone: "listen" | "think" | "speak" }) {
   return (
     <div className="flex h-10 items-center justify-center gap-[5px]" aria-hidden>
@@ -232,7 +233,7 @@ export function AssistantModule({
             <button
               onClick={listen}
               disabled={!canListen || thinking}
-              title={canListen ? "Talk to CrewOps" : "Voice input needs Chrome or Edge; type below instead"}
+              title={canListen ? "Talk to Groundtime" : "Voice input needs Chrome or Edge; type below instead"}
               className="group relative grid h-20 w-20 shrink-0 place-items-center rounded-full disabled:cursor-not-allowed"
             >
               {busy && (
@@ -266,7 +267,7 @@ export function AssistantModule({
                         ? "Speaking"
                         : playback === "paused"
                           ? "Paused"
-                          : "CrewOps assistant"}
+                          : "Groundtime assistant"}
                 </span>
                 <div className="flex items-center gap-1">
                   {playback !== "idle" && (
@@ -365,7 +366,7 @@ export function AssistantModule({
           <input
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
-            placeholder="Ask CrewOps anything about the roster…"
+            placeholder="Ask Groundtime anything…"
             maxLength={1000}
             className="min-w-0 flex-1 rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition focus:border-accent focus:ring-4 focus:ring-[#cfe0ef]"
           />
@@ -388,7 +389,7 @@ export function AssistantModule({
         )}
         {wide && turns.length === 0 && (
           <p className="rounded-md border border-dashed border-line p-6 text-center text-sm text-muted">
-            Your questions and CrewOps&apos; answers appear here.
+            Your questions and Groundtime&apos;s answers appear here.
           </p>
         )}
         <ol className="flex min-h-0 flex-col gap-2 overflow-y-auto pr-1 [scrollbar-width:thin]">

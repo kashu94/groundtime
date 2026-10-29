@@ -2,12 +2,14 @@
 
 ## Principle
 
-The model selects, sequences and narrates. It never calculates.
+Qloo chooses, the engine checks, the model talks. The model never calculates.
 
-In crew control, a hallucinated number is a real person sent to the wrong aircraft. So every
-crew id, duty hour, cost and legality verdict comes from a deterministic tool call. Models are
-used only where language understanding earns its cost: classifying an unusual question,
-choosing which tools to call, and turning a verified answer into speech.
+A passenger told to see a fort that closed an hour ago, or to leave an airport they can't walk
+back out of, misses a flight. In crew control, a hallucinated number is a real person sent to
+the wrong aircraft. So every recommendation comes from Qloo, every time, deadline, crew id,
+duty hour, cost and legality verdict from a deterministic check, and models are used only
+where language understanding earns its cost: choosing which tools to call, and turning a
+verified answer into words.
 
 ## System diagram
 
@@ -15,7 +17,7 @@ choosing which tools to call, and turning a verified answer into speech.
  CHANNELS
  ┌──────────────────────────────┐ ┌──────────────────────────┐ ┌──────────────────────┐
  │ Web app (Next.js)            │ │ Desk speaker (/speaker)  │ │ Any MCP host         │
- │ console, assistant, crew,    │ │ device account, alerts   │ │ (Claude Code,        │
+ │ my trip, care, crew, console │ │ device account, alerts   │ │ (Claude Code,        │
  │ Polly voice, live cards      │ │ and room questions       │ │ VS Code, Inspector)  │
  └──────────────┬───────────────┘ └────────────┬─────────────┘ └──────────┬───────────┘
                 │ Cognito JWT (one group per role)           │            │
@@ -30,7 +32,7 @@ choosing which tools to call, and turning a verified answer into speech.
                                 │ MCP client                              │
                                 ▼                                         ▼
  ┌────────────────────────────────────────────────────────────────────────────────┐
- │ CREWOPS MCP SERVER  (AgentCore Runtime · MCP 2025-11-25 · Streamable HTTP)      │
+ │ GROUNDTIME MCP SERVER  (AgentCore Runtime · MCP 2025-11-25 · Streamable HTTP)   │
  │  tools: lookup · duty_clock · check_legality · find_options · ripple · simulate │
  │         joint_plan · explain_rule · search_rules · suggest_ids                  │
  │         report_unavailability · report_incident · my_schedule                   │
@@ -40,8 +42,8 @@ choosing which tools to call, and turning a verified answer into speech.
  └──────────────┬─────────────────────────────────────────────┬───────────────────┘
                 ▼                                             ▼
  ┌──────────────────────────────┐ ┌───────────────────────────┐ ┌──────────────────────┐
- │ LEGALITY ENGINE (pure Python)│ │ LAYOVER CARE              │ │ S3 Vectors + Titan V2│
- │ 7 rules · duty math · cost   │ │ window · checks · brief   │ │ rules · intents ·    │
+ │ LEGALITY ENGINE (pure Python)│ │ GROUNDTIME · LAYOVER CARE │ │ S3 Vectors + Titan V2│
+ │ 7 rules · duty math · cost   │ │ wait · checks · concierge │ │ rules · intents ·    │
  │ candidates · ripple · joint  │ │      │                    │ │ scenarios            │
  └──────────────┬───────────────┘ │      ▼ Qloo Taste AI API  │ └──────────────────────┘
                 │                 │ Insights · Search · Tags  │
@@ -283,7 +285,7 @@ the plain source and desktop alerts stay off.
 Events and alerts carry the disruption id, its report type and the statuses; team alerts
 also carry the flights, gates, stations and times the team acts on. None carries a crew
 member's name or id. Accounts still hold no email address, because an alert address belongs
-to a role or a team, not to a person's login. A crew member is told in CrewOps itself, where
+to a role or a team, not to a person's login. A crew member is told in Groundtime itself, where
 a lapsing certificate shows as a notice on their own page.
 
 ### Spoken alerts: the desk speaker and "welcome back"
@@ -306,7 +308,7 @@ acknowledges it. Alerts take turns, oldest first. A report the analysis could no
 no desk yet, so only the whole-room speaker announces it.
 
 "Welcome back" is fetched once per sign-in. It lists, and can read, what reached a
-controller's desk or approvals since they last had CrewOps open (`USER#name / LAST_SEEN`,
+controller's desk or approvals since they last had Groundtime open (`USER#name / LAST_SEEN`,
 refreshed every few minutes by an open, visible console).
 
 ## Disruption analysis
@@ -349,7 +351,7 @@ person on duty for each team from the contact directory (`contacts.json`):
 | Disruption | Told, besides crew control |
 |---|---|
 | Sick crew, one or several | Only when a seat has no legal cover: operations monitoring and customer care, since the flight may not operate |
-| Certification expiry | The crew member, on their CrewOps page; training and crew records, who book the renewal |
+| Certification expiry | The crew member, on their Groundtime page; training and crew records, who book the renewal |
 | Delay, aircraft fault | Flight information (airport screens, website, app), operations monitoring (tells the captain), the departure station's duty manager, customer care for the booked passengers, the gate agent of the next departure at the same gate, and gate control when a gate moves; for a fault, maintenance control first |
 | Station closure | That station's duty manager, the duty managers at the other end of every affected flight, operations monitoring, flight information and customer care |
 | Gate closure | The station's gate control and duty manager; flight information and customer care when a departure moves; operations monitoring when one boards by bus |
@@ -519,6 +521,44 @@ the signed-in user, so every role rule stays in one place.
   picking crew, flights, gates and stations from the operation (`report_reference`). They
   follow their own reports (`my_reports`): how each stands and, for one handled internally,
   what was done.
+
+## Groundtime (Qloo)
+
+`crewops.taste.groundtime` plans a passenger's wait; `crewops.taste.concierge` is the agent
+they talk to. The sources are kept apart, as in layover care below.
+
+- **The schedule gives the wait** (`ground_wait`). Bookings are flight numbers
+  (`travellers.py`); the trip is on the next day those flights operate. For the flight the
+  traveller is waiting for, the expected departure is the schedule plus the latest reported
+  delay (`flight_delay` disruptions in the table, any state but revoked). The gate deadline is
+  departure less gate close (25 min) and 15 min; the terminal-door deadline is that less
+  security (45 min) and 15 min. Free time starts when they would have had to be at the
+  terminal without the delay, or for a connection when they are off the first flight.
+- **Where they are decides what is possible.** Away or landside, with at least 90 minutes
+  outside after the walk out, the plan is an outing around the airport (`city`). Airside,
+  which a connection always is, the plan stays in the terminal: screened passengers cannot
+  walk back out of an Indian airport. The network is domestic, so no visa rule applies.
+- **Qloo gives the candidates.** Up to five Insights requests, sent at once: sights (genre
+  tags museum, park, beach, market, monument, gallery, attraction) and restaurants within the
+  airport's radius, or restaurants and cafés within 900 m of the terminal; a list filtered to a
+  dietary option they need; films and series. All carry the traveller's loves as signals.
+- **The checks decide.** A sight must carry a sight's genre and none of a hotel's, an
+  agency's or an office's (Qloo tags those as attractions too). A meal must be an eatery
+  offering every dietary option needed. Every outing is walked on the clock: ride (road
+  distance 1.4 times the straight line, 25 km/h, 10 minutes to find a cab), the visit (the
+  place open throughout), the next ride, the ride back; one that reaches the terminal door
+  late is dropped. Two stops beat one; then listed hours, Qloo affinity and the earlier
+  return. A film is kept only if it ends 20 minutes before the gate, or within the flight
+  when the wait is spent outside; a series if an episode does.
+
+The concierge is a Converse tool loop on Nova with four tools (`my_wait`, `plan_groundtime`,
+`find_to_watch`, `search_catalogue`), at most five rounds and 25 seconds. Before its answer
+is shown, every run of capitalised words in it must appear in a tool result or the question;
+otherwise, or with no model, or when the model service is down, the traveller gets the plan
+written out from the checked facts. Customer care's view (`flight_care`) lists each
+Groundtime traveller on a delayed flight with their plan, and shows a dietary need only as
+met. Traveller taste profiles are `TRAVELLER#id / TASTE`, and the Qloo guard refuses
+traveller ids as it does crew ids.
 
 ## Layover care (Qloo)
 

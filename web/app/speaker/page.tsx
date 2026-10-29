@@ -262,9 +262,9 @@ export default function Speaker() {
     try {
       const queue = [...unheardNow.current].reverse();
       if (queue.length === 0) {
-        await say("You have no new CrewOps notifications.");
+        await say("You have no new Groundtime notifications.");
       } else {
-        await say(`You have ${queue.length} new CrewOps notification${queue.length === 1 ? "" : "s"}.`);
+        await say(`You have ${queue.length} new Groundtime notification${queue.length === 1 ? "" : "s"}.`);
         for (const a of queue) {
           // autoplay can block speech; only mark heard if it was actually spoken
           if (await say(a.speech)) markHeard([a.id]);
@@ -293,7 +293,7 @@ export default function Speaker() {
       if (stop) return;
       const data = (await r?.json().catch(() => null)) as { result?: { alerts?: Alert[] }; error?: string } | null;
       if (!r?.ok || !data?.result) {
-        setError(data?.error ?? "CrewOps is unreachable; trying again.");
+        setError(data?.error ?? "Groundtime is unreachable; trying again.");
         return;
       }
       setError(null);
@@ -348,7 +348,7 @@ export default function Speaker() {
       busy.current = true;
       setSpeaking(true);
       try {
-        const lead = entry.count === 0 ? `New CrewOps alert${forWhom}.` : "Reminder:";
+        const lead = entry.count === 0 ? `New Groundtime alert${forWhom}.` : "Reminder:";
         await say(`${lead} ${due.speech}`);
         entry.count += 1;
         entry.nextAt = Date.now() + GAP_MS;
@@ -396,7 +396,7 @@ export default function Speaker() {
         result?: { text: string; inScope: boolean };
         error?: string;
       } | null;
-      const answer = d?.result ?? { text: d?.error ?? "CrewOps is unreachable right now.", inScope: false };
+      const answer = d?.result ?? { text: d?.error ?? "Groundtime is unreachable right now.", inScope: false };
       setReply({ question: q, ...answer });
       await say(answer.text);
     } finally {
@@ -494,7 +494,7 @@ export default function Speaker() {
           <Radio size={15} className="text-sky-300" />
         </span>
         <div className="leading-tight">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-sky-300/80">CrewOps desk speaker</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-sky-300/80">Groundtime desk speaker</p>
           <h1 className="text-base font-semibold tracking-tight">{scopeLabel || " "}</h1>
         </div>
         {scope && (

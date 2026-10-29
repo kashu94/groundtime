@@ -84,7 +84,7 @@ describe("desk speaker questions", () => {
   });
 
   it("says who it is, says hello and counts crew out", () => {
-    expect(say("Who are you?")).toMatch(/^I'm the CrewOps ops-room speaker/);
+    expect(say("Who are you?")).toMatch(/^I'm the Groundtime ops-room speaker/);
     expect(say("hello")).toMatch(/^Hello\. You can ask/);
     expect(say("thank you")).toBe("You're welcome.");
     expect(say("how many crew are out")).toBe("2 crew members are out today.");

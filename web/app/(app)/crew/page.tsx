@@ -1,12 +1,14 @@
 "use client";
 
-import { BellRing, CalendarDays, Clock3, HeartPulse, MoonStar, Plane, X } from "lucide-react";
+import { BedDouble, BellRing, CalendarDays, Clock3, HeartPulse, MoonStar, Plane, ShieldCheck, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AirlineBadge, AIRLINES } from "@/components/airline";
 import { useMe } from "@/components/me";
+import { TasteMatch, TastePicker } from "@/components/taste";
 import { Button, clock, cx, day, Empty, Field, Mono, Notice, Panel, Spinner, Status } from "@/components/ui";
 import { tool } from "@/lib/client";
+import { distance, duration, hhmm, type Layover } from "@/lib/groundtime";
 import { shownStatus } from "@/lib/types";
 
 type Day = { date: string; flights: string[]; report_utc: string; release_utc: string };
@@ -255,6 +257,101 @@ function ReportSheet({
           </p>
         </form>
       </div>
+    </div>
+  );
+}
+
+/** The next night stop: the free evening worked out from the roster, and places Qloo ranks
+ * for the crew's taste, each checked to be open, close and fit for their diet. */
+function LayoverCare() {
+  const [brief, setBrief] = useState<Layover | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    tool<Layover>("my_layover").then(setBrief, (err: Error) => setError(err.message));
+  }, []);
+  useEffect(load, [load]);
+
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-2">
+      <Panel title="Layover care" icon={<BedDouble size={14} className="text-accent" />}>
+        {error ? (
+          <Notice tone="error">{error}</Notice>
+        ) : !brief ? (
+          <Spinner className="text-muted" />
+        ) : !brief.night_stop ? (
+          <Empty icon={<MoonStar size={22} />}>{brief.note}</Empty>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div>
+              <p className="text-sm font-semibold">
+                {brief.window.city || brief.window.station}
+                {brief.window.hotel_area && (
+                  <span className="font-normal text-muted"> · {brief.window.hotel_area}</span>
+                )}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">
+                {day(brief.night_stop.date)} · <Mono>{brief.night_stop.pairing_id}</Mono> · {brief.window.rest_hours}h
+                rest{!brief.window.legal_rest && " (short of the minimum)"}
+              </p>
+            </div>
+            <dl className="grid grid-cols-3 gap-3 text-sm">
+              <div>
+                <dt className="text-xs text-muted">Free from</dt>
+                <dd className="font-mono">{hhmm(brief.window.free_from_local)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Dinner at</dt>
+                <dd className="font-mono">{hhmm(brief.window.meal_at_local)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Asleep by</dt>
+                <dd className="font-mono">{hhmm(brief.window.sleep_by_local)}</dd>
+              </div>
+            </dl>
+            <p className="text-xs text-muted">
+              {duration(brief.window.free_minutes)} free
+              {brief.window.tiring && " after a long day, so somewhere quiet and close"}.
+            </p>
+            {brief.picks.length === 0 ? (
+              <p className="text-sm text-muted">No place fits this evening.</p>
+            ) : (
+              <ol className="flex flex-col gap-3">
+                {brief.picks.map((p) => (
+                  <li key={p.name} className="rounded-lg border border-line p-3">
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                      {p.name} <TasteMatch affinity={p.affinity} />
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {[
+                        distance(p.distance_m),
+                        p.open_until && `open until ${hhmm(p.open_until)}`,
+                        p.genres.slice(0, 3).join(", "),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    {p.why.length > 0 && (
+                      <ul className="mt-1.5 flex flex-col gap-0.5 text-xs text-muted">
+                        {p.why.map((w) => (
+                          <li key={w}>· {w}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
+            {brief.dietary_needs_met && (brief.dietary_needed ?? []).length > 0 && (
+              <p className="flex items-center gap-1.5 text-xs text-ok">
+                <ShieldCheck size={13} /> Every pick serves {(brief.dietary_needed ?? []).join(", ").replace(/_/g, " ")}
+                .
+              </p>
+            )}
+            {brief.note && <p className="text-xs text-muted">{brief.note}</p>}
+          </div>
+        )}
+      </Panel>
+      <TastePicker crew onSaved={load} />
     </div>
   );
 }
@@ -562,6 +659,8 @@ export default function Crew() {
           )}
         </div>
       </div>
+
+      <LayoverCare />
 
       {sheet && (
         <ReportSheet

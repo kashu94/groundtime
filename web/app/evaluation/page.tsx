@@ -234,9 +234,9 @@ export default function Evaluation() {
       <div className="mx-auto flex max-w-[1280px] flex-col gap-6 border-line bg-surface px-4 py-8 sm:rounded-lg sm:border sm:px-8">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm text-muted">CrewOps evaluation</p>
+            <p className="text-sm text-muted">Groundtime evaluation</p>
             <h1 className="mt-0.5 text-[22px] font-semibold tracking-tight text-foreground">
-              How well CrewOps answers
+              How well Groundtime answers
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-muted">
               A held-out set written after the routing rules were final and never used to change them: every gold
@@ -412,7 +412,7 @@ export default function Evaluation() {
         <p className="text-center text-xs text-muted">
           All crew, flights and airlines here are synthetic, made up for this demonstration.{" "}
           <Link href="/login" className="text-accent hover:underline">
-            Sign in to CrewOps
+            Sign in to Groundtime
           </Link>
         </p>
       </div>

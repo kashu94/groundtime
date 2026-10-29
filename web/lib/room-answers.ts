@@ -21,14 +21,14 @@ export type RoomAnswer = { text: string; inScope: boolean };
 
 export const OUT_OF_SCOPE =
   "That's outside what this speaker covers. I can tell you about the desks, the controllers, " +
-  "open disruptions and today's numbers. For anything else, sign in and ask the CrewOps assistant.";
+  "open disruptions and today's numbers. For anything else, sign in and ask the Groundtime assistant.";
 
 const HELP =
   "You can ask: how many desks are there, who are the controllers, how many disruptions are open, " +
   "what's on Rohit's desk, which desk is busiest, anything escalated, or how many flights today.";
 
 const INTRO =
-  "I'm the CrewOps ops-room speaker. I read out each new disruption and its cover as it happens, " +
+  "I'm the Groundtime ops-room speaker. I read out each new disruption and its cover as it happens, " +
   "and answer questions about the desks, the controllers, open disruptions and today's numbers.";
 
 const NUMBER_WORDS: Record<string, string> = { one: "1", won: "1", two: "2", to: "2", too: "2", three: "3" };

@@ -28,6 +28,13 @@ const COMMON: Step[] = [
   },
 ];
 
+const CONCIERGE: Step = {
+  title: "Ask about your wait",
+  text:
+    "The round button bottom-right opens the assistant. Ask by voice or text: what to do with the delay, something " +
+    "to watch past security, when to be at the gate. Every time and place comes from your plan.",
+};
+
 const AIRLINES_STEP: Step = {
   title: "Which airline",
   text:
@@ -115,7 +122,7 @@ const BY_ROLE: Partial<Record<Role, Step[]>> = {
       title: "Record a disruption",
       text:
         "Pick the type (sick crew, delay, gate closure...), pick the crew, flight, gate or station from the lists and record " +
-        "it. CrewOps works out what it breaks and who must be told, and gives it to a controller.",
+        "it. Groundtime works out what it breaks and who must be told, and gives it to a controller.",
     },
     {
       title: "Follow every report",
@@ -138,6 +145,44 @@ const BY_ROLE: Partial<Record<Role, Step[]>> = {
         "you are out in rose, today outlined, with every flight listed below. Tap 'I can't fly' to report yourself unavailable. It reaches the reporting desk and crew control at once, and you " +
         "can follow it under 'My reports'. Days you have already reported cannot be reported again, and show in rose " +
         "in your week. Unwell on a day off? Report it too: nothing needs covering, but you won't be called out then.",
+    },
+    {
+      title: "Layover care",
+      text:
+        "On your next night stop, Groundtime works out your free evening from the roster and suggests places near the " +
+        "hotel that Qloo ranks for your taste, open in time, suited to your diet and quiet after a long day.",
+    },
+  ],
+  traveller: [
+    {
+      title: "Your wait, planned",
+      text:
+        "My trip shows your flight, when it now leaves and when to be at the gate. Below it, a plan for the time you " +
+        "have: places Qloo ranks for your taste, each checked to be open, to suit your diet and to get you back in time.",
+    },
+    {
+      title: "Tell it where you are",
+      text:
+        "Not at the airport yet, at the terminal before security, or past security. Past security (airside) the plan " +
+        "stays in the terminal, with films or series that end before the gate closes.",
+    },
+    {
+      title: "What you love",
+      text:
+        "Pick up to five artists, films, shows, books or podcasts and any dietary needs. Only Qloo ids are saved, and " +
+        "they are sent to Qloo without your name.",
+    },
+  ],
+  customer_care: [
+    {
+      title: "Delayed flights",
+      text:
+        "Every delayed flight still to leave, with how many are booked and how many have Groundtime. Open one for each " +
+        "passenger's plan: where they are, city or terminal, what is planned and when they are back.",
+    },
+    {
+      title: "Privacy",
+      text: "Dietary needs show only as met, never what they are. Offer the plan; the passenger keeps the details.",
     },
   ],
   auditor: [
@@ -361,6 +406,8 @@ function StepVisual({ visual }: { visual: Visual }) {
 
 function stepsFor(roles: Role[]): Step[] {
   const own = roles.flatMap((r) => BY_ROLE[r] ?? (r === "super_admin" ? (BY_ROLE.admin ?? []) : []));
+  // A passenger's assistant is the concierge for their wait, not crew control's.
+  if (roles.includes("traveller")) return [...own, CONCIERGE];
   return [...own, ...COMMON];
 }
 
@@ -413,7 +460,7 @@ export function GuideButton() {
           setOpen(true);
         }}
         className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted transition hover:bg-sunken hover:text-foreground"
-        title="How CrewOps works"
+        title="How Groundtime works"
       >
         <HelpCircle size={16} /> <span className="hidden sm:inline">Guide</span>
       </button>
@@ -425,7 +472,7 @@ export function GuideButton() {
             <div
               role="dialog"
               aria-modal
-              aria-label="How CrewOps works"
+              aria-label="How Groundtime works"
               className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >

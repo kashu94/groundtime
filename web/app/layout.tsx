@@ -6,8 +6,10 @@ const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], 
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-plex-mono" });
 
 export const metadata: Metadata = {
-  title: "CrewOps",
-  description: "Airline crew control: verified answers, live disruptions, four-eyes approvals.",
+  title: "Groundtime",
+  description:
+    "Every hour on the ground, worth having: delayed passengers and crew get their safe free time planned with Qloo, " +
+    "and crew control keeps the operation running.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

@@ -149,7 +149,7 @@ the lower-level CloudFormation constructs.
 Everything deploys to `us-east-1` by default, where every service the system uses is
 available: DynamoDB, SQS, SNS, Lambda, S3 Vectors, AgentCore and Bedrock with Nova and Titan.
 Model IDs were chosen so they also work unchanged in other regions. Every resource name is
-`crewops-qloo-<stage>-...` and every stack `CrewOpsQloo-<stage>-...`, derived in one place
+`groundtime-<stage>-...` and every stack `Groundtime-<stage>-...`, derived in one place
 (`crewops.config`), so a stage can share an account with anything else and never touch it.
 
 ## D14. Tools answer or ask; they never guess
@@ -181,3 +181,21 @@ in DynamoDB keep the event quota and personal data safe.
 Not chosen: sending crew names or ids for Qloo to profile. Qloo results describe aggregate
 affinities, and a crew member's picks are mixed with their colleagues' before they are sent.
 
+
+## D16. Passengers first: Groundtime plans the wait a disruption creates
+
+A disruption is handled twice. The roster is repaired, and people are left waiting:
+passengers on the delayed flight, connecting passengers, the crew. Airlines are good at the
+first and leave the second to a meal voucher. Taste is what the second needs, so that is where
+Qloo goes: every Groundtime plan is Qloo's picks for this traveller, checked here. Crew control
+stays as the backbone. It is where a delay is reported once and becomes true for every plan,
+and what keeps the crew's side legal.
+
+Where a traveller is decides what may be planned, before taste does. Past security they stay
+in the terminal, however long the delay: Indian airports don't let screened passengers walk
+back out. The plan says so rather than offering an outing they can't take.
+
+Not chosen: a model that plans the afternoon from the delay alone. It would name a fort
+without knowing it shuts at five, and a beach without counting the ride back. The concierge's
+model may only word what the tools returned, and an answer naming anything else is replaced
+by the plan itself.

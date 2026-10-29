@@ -38,6 +38,13 @@ export const TOOLS = {
   revoke_report: { list: false, write: true },
   team_accounts: { list: true, write: false },
   reset_password: { list: false, write: true },
+  my_groundtime: { list: false, write: false },
+  my_taste: { list: false, write: false },
+  save_my_taste: { list: false, write: true },
+  taste_search: { list: true, write: false },
+  my_layover: { list: false, write: false },
+  delayed_flights: { list: true, write: false },
+  flight_care: { list: false, write: false },
 } as const;
 
 export type ToolName = keyof typeof TOOLS;

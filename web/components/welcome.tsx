@@ -14,7 +14,7 @@ type Welcome = { since: string | null; alerts: WelcomeAlert[]; speech: string };
 const HEARTBEAT_MS = 5 * 60 * 1000;
 
 /** "While you were away": what came to this controller's desk, or to approvals, since they
- * last had CrewOps open. Fetched once per sign-in by the sign-in page and shown on the first
+ * last had Groundtime open. Fetched once per sign-in by the sign-in page and shown on the first
  * page; while a console stays open and visible it tells the server so every few minutes. */
 export function WelcomeBack() {
   const me = useMe();
@@ -93,7 +93,7 @@ export function WelcomeBack() {
         <div>
           <p className="text-[11px] font-semibold text-[#173f63]">While you were away</p>
           <p className="mt-0.5 text-sm text-foreground">
-            {data.alerts.length} update{data.alerts.length === 1 ? "" : "s"} since you last had CrewOps open
+            {data.alerts.length} update{data.alerts.length === 1 ? "" : "s"} since you last had Groundtime open
           </p>
         </div>
         <button

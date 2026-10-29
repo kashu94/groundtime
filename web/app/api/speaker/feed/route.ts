@@ -19,6 +19,6 @@ export async function GET(request: Request) {
     if (err instanceof DeviceError) return Response.json({ error: err.message }, { status: err.status });
     if (err instanceof ToolCallError) return Response.json({ error: err.message, code: err.code }, { status: 422 });
     console.error("speaker feed failed", err);
-    return Response.json({ error: "CrewOps is unreachable right now." }, { status: 502 });
+    return Response.json({ error: "Groundtime is unreachable right now." }, { status: 502 });
   }
 }

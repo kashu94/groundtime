@@ -713,7 +713,7 @@ export default function ReportPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Record a disruption</h1>
         <p className="text-sm text-muted">
-          CrewOps works out what it breaks, who must be told and how it gets resolved. Crew control takes it from there.
+          Groundtime works out what it breaks, who must be told and how it gets resolved. Crew control takes it from there.
         </p>
       </header>
 

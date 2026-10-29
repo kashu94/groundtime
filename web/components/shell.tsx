@@ -4,10 +4,12 @@ import {
   Activity,
   CalendarDays,
   FilePlus2,
+  HeartHandshake,
   LayoutList,
   ListChecks,
   LogOut,
   Menu,
+  Luggage,
   Mic,
   Plane,
   Radio,
@@ -69,6 +71,8 @@ const ICONS: Record<string, typeof Plane> = {
   "/crew": UserRound,
   "/admin": Settings,
   "/assistant": Mic,
+  "/trip": Luggage,
+  "/care": HeartHandshake,
 };
 
 function Brand() {
@@ -78,8 +82,8 @@ function Brand() {
       <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-white">
         <Plane size={15} strokeWidth={2} />
       </span>
-      <span className="text-[15px] font-semibold tracking-tight">CrewOps</span>
-      <span className="text-xs text-muted">with Qloo taste</span>
+      <span className="text-[15px] font-semibold tracking-tight">Groundtime</span>
+      <span className="text-xs text-muted">with Qloo</span>
     </Link>
   );
 }
@@ -218,15 +222,15 @@ function AssistantButton() {
   return (
     <Link
       href="/assistant"
-      aria-label="Ask CrewOps"
-      title="Ask CrewOps"
+      aria-label="Ask Groundtime"
+      title="Ask Groundtime"
       className="group fixed bottom-5 right-5 z-40 grid h-12 w-12 place-items-center rounded-full"
     >
       <span className="grid h-12 w-12 place-items-center rounded-full bg-brand text-white shadow-[0_4px_14px_rgb(0_0_0/0.18)] transition-colors group-hover:bg-accent">
         <Mic size={20} />
       </span>
       <span className="pointer-events-none absolute right-14 whitespace-nowrap rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
-        Ask CrewOps
+        Ask Groundtime
       </span>
     </Link>
   );

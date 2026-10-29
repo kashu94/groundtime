@@ -28,14 +28,22 @@ describe("roles and views", () => {
     expect(homeFor(["controller"])).toBe("/console");
     expect(homeFor(["admin"])).toBe("/admin");
     expect(homeFor(["reporter"])).toBe("/operations");
+    expect(homeFor(["traveller"])).toBe("/trip");
+    expect(homeFor(["customer_care"])).toBe("/care");
   });
 
   it("shows only the views a role uses", () => {
     expect(viewsFor(["crew"]).map((v) => v.href)).toEqual(["/crew", "/assistant"]);
-    expect(viewsFor(["controller"]).map((v) => v.href)).toEqual(["/console", "/disruptions", "/assistant"]);
-    expect(viewsFor(["approver"]).map((v) => v.href)).toEqual(["/disruptions", "/approvals", "/assistant"]);
-    expect(viewsFor(["admin"]).map((v) => v.href)).toEqual(["/disruptions", "/admin", "/assistant"]);
+    expect(viewsFor(["controller"]).map((v) => v.href)).toEqual(["/console", "/disruptions", "/care", "/assistant"]);
+    expect(viewsFor(["approver"]).map((v) => v.href)).toEqual(["/disruptions", "/approvals", "/care", "/assistant"]);
+    expect(viewsFor(["admin"]).map((v) => v.href)).toEqual(["/disruptions", "/care", "/admin", "/assistant"]);
     expect(viewsFor(["reporter"]).map((v) => v.href)).toEqual(["/operations", "/report", "/assistant"]);
+    expect(viewsFor(["customer_care"]).map((v) => v.href)).toEqual(["/care", "/assistant"]);
+  });
+
+  it("shows a traveller only their trip and the assistant", () => {
+    expect(viewsFor(["traveller"]).map((v) => v.href)).toEqual(["/trip", "/assistant"]);
+    expect(viewsFor(["traveller"])[0]).toMatchObject({ label: "My trip", hint: "Your wait, planned" });
   });
 });
 
@@ -43,6 +51,8 @@ describe("the tool proxy", () => {
   it("forwards only known tools", () => {
     expect(isTool("approve_plan")).toBe(true);
     expect(isTool("crew_tool")).toBe(true); // role-checked dispatch on the server
+    expect(isTool("my_groundtime")).toBe(true);
+    expect(isTool("flight_care")).toBe(true);
     expect(isTool("list_crew_tools")).toBe(false);
     expect(isTool("__proto__")).toBe(false);
     expect(isTool("constructor")).toBe(false);

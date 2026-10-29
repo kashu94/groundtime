@@ -1,127 +1,122 @@
-# CrewOps with Qloo
+# Groundtime
 
-A crew control agent that knows what crews and passengers love. Built on the Qloo Taste AI
-API, the Model Context Protocol and AWS.
+**Every hour on the ground, worth having.** An airline agent that turns a delay or a long
+connection into time well spent, for passengers and for crew. Built on the Qloo Taste AI API,
+the Model Context Protocol and AWS.
 
-A delay at 20:00 strands a crew in Delhi overnight. Crew control can find a legal roster
-for the morning in seconds. Nobody finds the crew dinner: they land at 21:00 after a nine-hour
-duty, in an area they don't know, with an eight-hour sleep to protect before a 09:30 report,
-one of them vegetarian, one Jain. A generic assistant answers "try a local restaurant", or
-names one that closed an hour ago or never existed.
+KS434 from Goa is four hours late. The airline knows at 13:00; its passengers find out at
+the gate. One is still at their hotel and could have had the afternoon. One is past
+security with nothing to do. One is connecting in Bengaluru, Jain, with three and a half hours
+to fill. Today they all get the same SMS and, at best, the same meal voucher.
 
-CrewOps answers with places that are real, open for the whole meal inside the crew's free
-window, within reach of the crew hotel, offer every dietary option the crew needs, are quiet
-after a tiring day, and are ranked by Qloo's taste affinity to the things this crew said they
-love. Each pick says why, and the brief shows what Qloo was asked.
+Groundtime gives each of them a plan of their own, the moment the delay is reported:
 
-> The model selects, sequences and narrates. It never calculates, and it never invents a place.
+* **Still in town:** Cansaulim Beach at 14:55, a vegetarian lunch at 16:25, head back at
+  17:25, at the terminal door by 18:16, with 18:20 the deadline. Every stop is real, open for
+  the whole visit, picked by Qloo for what this traveller loves, and the rides are counted.
+* **Past security:** no suggestion to leave, because they can't. Food at the terminal, and a
+  105-minute film matched to their taste that ends before the gate closes.
+* **Crew on the same disruption:** dinner near the crew hotel inside their legal rest, with
+  eight hours of sleep protected before the next report.
 
-## What Qloo adds
+> Qloo chooses, the engine checks, the model talks. The model never calculates a time and
+> never names a place a tool didn't return.
 
-Crew control already runs on rules: duty limits, rest, certificates. What it has never had
-is taste. CrewOps uses Qloo for the human side of a disruption:
+## How Qloo is used
 
-| Question | Without Qloo | With Qloo |
+Qloo is the taste in every plan. Nothing in Groundtime recommends anything without it.
+
+| Groundtime asks Qloo | Qloo API | Then the engine checks |
 |---|---|---|
-| Where can the P-2291 crew eat tonight? | A guess, or a name the model made up | Real places near the crew hotel, ranked by affinity to the crew's own picks |
-| Is it open when they're free? | Unknown | Checked against Qloo's opening hours for the free window the roster gives |
-| Does it suit everyone? | Unknown | Checked against Qloo's dietary and noise tags for every need the crew has |
-| Why this place? | "It's popular" | "Open at 21:45 until 23:00 · 400 m from the crew hotel · offers vegetarian food · Qloo taste match 0.91" |
+| Places to see near the airport, for this traveller's taste | Insights, `urn:entity:place` with `filter.location`, genre tags, the traveller's loves as `signal.interests` | It is a real sight (Qloo also tags hotels and travel agents as attractions); open for the whole visit; the ride there, on and back gets them to the terminal in time |
+| Somewhere to eat | Insights, restaurant genre, plus a second list filtered to a dietary option they need | Offers every dietary option they need; open; within reach |
+| Food without leaving the terminal | Insights within 900 m of the terminal | It is a place to eat, not a lounge or a duty-free shop; open now |
+| Something to watch while waiting, or on the flight | Insights, `urn:entity:movie` and `urn:entity:tv_show`, cross-domain from the music, books and films they love | The film's running time ends before the gate closes; episodes fit the wait |
+| What the traveller loves | Search, over Qloo's catalogue | Each pick is a Qloo id, never free text |
+| Where a crew can eat tonight | Insights near the crew hotel, with the crew's shared loves | Open for a whole meal inside the free window the roster gives; every dietary need; quiet after a tiring day |
 
-How it works:
+**The wait, from the schedule.** For each traveller the engine works out when their time is
+their own and the two deadlines that matter: the terminal door (bag drop and security still
+ahead) and the gate. A delay is time handed back: the free time starts when they would have had
+to be at the airport. Where they are decides what is possible (`crewops.taste.groundtime`):
 
-1. **Taste profiles, opt-in.** A crew member picks up to five things they love (an artist, a
-   film, a book, a cuisine) from Qloo's catalogue, plus any dietary need and whether they
-   unwind quiet or lively. Each pick is a Qloo id, never free text.
-2. **The window, from the roster.** For a night stop the engine works out the free time:
-   release, the hotel ride and check-in, then back from the next report the ride, an hour to
-   get ready and eight hours of sleep. What's left is when a meal fits, if it fits at all
-   (`crewops.taste.window`).
-3. **Qloo, for the places.** The Insights API returns places near the crew hotel ranked by
-   affinity to the crew's picks, with a second list filtered to a dietary option they need
-   (`crewops.taste.layover`).
-4. **The checks, for the crew.** Every place is kept or dropped by fixed rules: open for the
-   whole meal, every dietary option, not loud after a tiring day, not airside, within reach.
-   Rejections are counted and shown.
+| Where the traveller is | Groundtime plans |
+|---|---|
+| Not at the airport yet (the delay is known early) | An outing around the airport, ending at the terminal door in time |
+| At the terminal, before security | The same, if the time allows after the walk out and back; otherwise the terminal |
+| Past security, or on a connection | The terminal only: screened passengers can't walk back out of an Indian airport. Food there, and films and series that fit |
 
-Qloo is called only from the server, and only with aggregate signals: entity and tag ids, a
-map point, a radius. No crew id, name, username or email is ever sent; a guard refuses any
-request that could carry one (`crewops.taste.qloo.guard`). A controller sees how many of the
-crew shared their taste and that the pick meets everyone's dietary needs, never whose needs
-they are. Qloo results describe aggregate affinities, and the brief presents them that way.
+The network is domestic, so no visa applies. An international transit would add one more
+rule here: no entry permission, no outing.
 
-## What else it does
+**The concierge, an agent with Qloo tools.** A traveller can simply ask: "my flight's late and
+I'm still at the hotel, what can I do?" Amazon Nova decides which tools to call (`my_wait`,
+`plan_groundtime`, `find_to_watch`, `search_catalogue`) and words the answer. Before it is
+shown, every capitalised name in it is matched against what the tools returned; one that isn't
+there means the model made it up, and the traveller gets the checked plan written out instead
+(`crewops.taste.concierge`).
 
-It answers crew-control questions: lookups ("who is on reserve at BLR?"), replacements
-("who covers P-2291?"), legality ("is C-2087 legal for P-2291?") and consequences ("both A320
-captains are sick, what's the joint plan?"). Every crew id, duty hour and rupee in an answer
-comes from a deterministic rules engine, and a verifier checks the final wording against the
-tool results before anyone sees it.
+**Re-planned by the delay itself.** Delays are reported once, through the operations side
+(a reporter, or a feed), and every plan reads them live: a new delay moves every affected
+traveller's deadlines and plan at once. Customer care sees each delayed flight's travellers
+and what was planned for them.
 
-It reacts to disruptions without being asked. A sick call or an incident goes onto a queue,
-and the disruption analysis works out the blast radius and the legal options, ranked by
-cost, before the controller asks. Each change is pushed live to the console and, where the
-admin has set it up, emailed to the role that must act.
+**Privacy.** Qloo is called only from the server, with ids, a map point and a radius. No
+name, username, crew id, traveller id or email is ever sent; a guard refuses any request that
+could carry one (`crewops.taste.qloo.guard`). Customer care and controllers see that a plan
+meets someone's dietary needs, never what the needs are. Taste is opt-in.
 
-Seats are covered the way crew control covers them. Cover only ever comes from the airline
-that flies the trip, ranked by what it costs (callout, seniority and travel allowances,
-positioning and any delay). When fewer than three of the seat's own rank are legal, the
-regulated substitutes follow: a command-qualified first officer for a captain, a captain in
-the right seat for a first officer, or one cabin crew short while one per 50 seats remains.
-Cancelling is always the last choice, and no two-pilot aircraft is offered with one pilot.
+## The operations side
 
-"Anything waiting for me?" brings back pending work hours later: a plan to review for a
-controller, a plan to sign off for an approver. Within a conversation, a reply such as
-"Captain" or "is she legal?" is read with the question before it.
+The same app runs the airline's crew control, which is where delays come from and what keeps
+the crew side legal:
 
-The desk hears about a disruption even when nobody is signed in. A desk speaker, running
-under its own device account, chimes and glows amber when a disruption reaches its desk and
-reads the brief on request. A controller signing in hears what came while they were away,
-and desktop notifications reach them with CrewOps closed.
-
-Every crew change has four eyes on it. One person reports, a controller picks a plan, a
-different person approves it, and only then is it committed in one transaction. Role checks
-live in code, never in a prompt.
+* A reporter records a disruption (a delay, sick crew, a gate closure); the analysis works out
+  who and what it touches and the legal options, ranked by cost, before a controller asks.
+* A controller picks cover and a different person approves it (four eyes); only then is the
+  roster changed, in one transaction.
+* Every crew id, duty hour and rupee in an answer comes from a deterministic legality engine,
+  and a verifier checks the wording against the tool results.
+* A desk speaker announces new disruptions; desktop alerts and email reach the right role.
 
 ## Roles
 
 | Role | Can do |
 |---|---|
-| Crew | See own schedule, report own unavailability, keep a taste profile, see their own layover brief |
-| Reporter | Record any disruption: sick crew (one or several), certification expiry, delays, aircraft faults, station and gate closures, gate changes; follow their own reports |
-| Controller | Review disruptions and options, submit one plan for approval, see the crew's layover brief |
+| Traveller | Their own trip: the wait, the plan, the concierge, their taste profile |
+| Customer care | Every delayed flight and each Groundtime traveller's plan (needs shown only as met) |
+| Crew | Own schedule, own unavailability, a taste profile, their own layover brief |
+| Reporter | Record any disruption, including flight delays; follow their own reports |
+| Controller | Review disruptions and options, submit one plan for approval, see a crew's layover brief |
 | Approver | Approve or reject submitted plans; approval commits them |
 | Auditor | Read-only access to every disruption, decision and audit record |
-| Admin | Revoke a report filed in error (a reporter's, a crew member's own absence, planned leave) until cover is approved; reset the passwords of crew, reporters, controllers, approvers and auditors; book planned leave; tighten rule thresholds; read the system activity log; manage alert addresses. Never submits or approves a plan |
-| Super admin | Everything an admin does, and also resets admins' passwords and relaxes a rule threshold back towards regulation (an admin may only tighten one) |
-| Speaker | A device, not a person: hears the alert briefs for the desk or area its screen is set to; cannot read records, ask questions or change anything |
+| Admin | Revoke a report filed in error, reset passwords, book planned leave, tighten rule thresholds, read the activity log, manage alert addresses. Never submits or approves a plan |
+| Super admin | Everything an admin does, and also resets admins' passwords and relaxes a rule threshold back towards regulation |
+| Speaker | A device, not a person: hears the alert briefs for its desk or area |
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roles-and-approvals).
 
 ## Architecture
 
 ```
-   Web app (Next.js)                       Any MCP host
-   console · assistant · crew · speaker    (Claude, VS Code, MCP Inspector)
-              \                              /
-               ▼                            ▼
-        ┌──────────────────────────────────────────────────────┐
-        │ Assistant agent on AgentCore Runtime                  │
-        │ router → advisor (Nova on Bedrock) → verifier →       │
-        │ explainer · Bedrock Guardrails · AgentCore Memory     │
-        └──────────────────────────┬───────────────────────────┘
-                                   │ MCP (Streamable HTTP)
-        ┌──────────────────────────▼───────────────────────────┐
-        │ CrewOps MCP server · tools + interactive cards        │
-        └───────┬──────────────────┬───────────────────┬───────┘
-                ▼                  ▼                   ▼
-     Legality engine       Layover care          S3 Vectors + Titan V2
-     (pure Python)         window · checks ───► Qloo Taste AI API
-                │                  │              (Insights, Search, Tags)
-                ▼                  ▼
-        DynamoDB (operation, taste profiles, Qloo cache)
+   Web app (Next.js)                              Any MCP host
+   my trip · customer care · crew · console       (Claude Code, VS Code, MCP Inspector)
+              \                                     /
+               ▼                                   ▼
+        ┌──────────────────────────────────────────────────────────┐
+        │ Groundtime MCP server on AgentCore Runtime                │
+        │ concierge agent (Nova) · crew-control agent (Nova)        │
+        │ Bedrock Guardrails · AgentCore Memory                     │
+        └───────┬───────────────────┬──────────────────────┬────────┘
+                ▼                   ▼                      ▼
+        Groundtime planner    Legality engine        S3 Vectors + Titan V2
+        wait · checks ──────► Qloo Taste AI API
+        layover care          (Insights, Search, Tags)
+                │                   │
+                ▼                   ▼
+        DynamoDB (operation, delays, taste profiles, Qloo cache)
            │──Streams──┬──► disruption analysis (Lambda)
-           ▲           └──► notifier (Lambda) ──► live console (AppSync Events)
+           ▲           └──► notifier (Lambda) ──► live updates (AppSync Events)
            │                                  └─► email alerts (SNS, by role)
         SQS ingestion (live reports) · S3 roster uploads (batch)
 ```
@@ -133,16 +128,16 @@ Full design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why each piece was ch
 
 | Service | Role |
 |---|---|
-| Qloo Taste AI API | Places near the crew hotel ranked by taste affinity; opening hours, dietary and noise tags; the catalogue crew pick their loves from |
-| Amazon Bedrock | Amazon Nova models for language only (routing, tool choice, wording), Titan V2 embeddings, Guardrails |
-| Amazon Bedrock AgentCore | Runtime for the agent and MCP server, Memory, Observability |
-| Amazon DynamoDB | Operational data, taste profiles and the Qloo answer cache (single table) with Streams |
+| Qloo Taste AI API | Every recommendation: places to see and eat around the airport and in the terminal, films and series, places near the crew hotel; the catalogue travellers and crew pick their loves from |
+| Amazon Bedrock | Amazon Nova for language only (the concierge's tool choice and wording, crew-control routing), Titan V2 embeddings, Guardrails |
+| Amazon Bedrock AgentCore | Runtime for the agents and the MCP server, Memory |
+| Amazon DynamoDB | The operation, reported delays, taste profiles and the Qloo answer cache (single table) with Streams |
 | Amazon S3 Vectors | Hybrid search over rules, example questions and past scenarios |
-| Amazon SQS + AWS Lambda | Real-time disruption ingestion and background agents |
-| Amazon SNS | Optional email alerts, assigned to roles by the admin |
-| Amazon EventBridge Scheduler | One-time escalation checks for untouched disruptions |
+| Amazon SQS + AWS Lambda | Real-time disruption ingestion and background analysis |
+| Amazon SNS | Email alerts by role, including customer care |
+| Amazon EventBridge Scheduler | One-time escalation checks |
 | AWS Systems Manager Parameter Store | The Qloo API key and the web push keys, as SecureStrings |
-| AWS AppSync Events | Live updates to the console |
+| AWS AppSync Events | Live updates |
 | Amazon Cognito | Sign-in, with one group per role |
 | Amazon Polly | Spoken answers in the assistant and on the desk speaker |
 | AWS Amplify Hosting | The web app |
@@ -150,31 +145,33 @@ Full design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Why each piece was ch
 
 ## Repository layout
 
+The Python package is `crewops`: the operations engine Groundtime is built on.
+
 ```
 data/seed/              The seed operating week (JSON), carried forward to 31 December on load
 data/eval/              Gold questions, paraphrases, reference scenarios and the held-out set
-data/team/              The demo team: usernames and roles, nothing private
+data/team/              The demo team and demo passengers (bookings by flight number), demo
+                        taste profiles; nothing private
 src/crewops/
+  taste/                Groundtime: the Qloo client and guard, airports and crew hotels, the
+                        wait, the plan and its checks, the concierge agent, layover care
   config.py             Runtime settings
   domain/               Typed records shared by every layer
   ingestion/            Seed loading, roster uploads (S3 + Lambda), live reports (SQS + Lambda)
   engine/               Legality engine: duty math, the seven rules, assessment, cost ranking,
                         blast radius, delay effects, joint plans
-  taste/                Qloo client, taste profiles, crew hotels, the layover window and the
-                        layover brief
   analysis/             Disruption analysis, its stream Lambda and the run command
   search/               Hybrid keyword + semantic search over S3 Vectors
   store/                DynamoDB key layout, item conversion, reads and writes
-  tools/                The tools agents call: schemas, role checks, dispatch
-  agent/                Question pipeline: router, planner, verifier, templates, Nova roles
+  tools/                The crew-control tools agents call: schemas, role checks, dispatch
+  agent/                Crew-control question pipeline: router, planner, verifier, Nova roles
   auth/                 Sign-in: the team, token checks, claims to caller, account sync
   plans/                Plans and approvals, with the four-eyes rules
   mcp/                  The MCP server for AgentCore, its package builder and a client
-  notify/               Live console events, admin-managed email alerts, escalation and
-                        desktop alerts (web push)
+  notify/               Live events, email alerts, escalation and desktop alerts
   alerts.py             Spoken alerts for the desk speaker and "welcome back"
-skills/                 The CrewOps Agent Skill (SKILL.md, references, a client script)
-web/                    The web app (Next.js): console, assistant, desk speaker, crew view, admin
+skills/                 The Agent Skill (SKILL.md, references, a client script)
+web/                    The web app (Next.js): my trip, customer care, crew, console, assistant
 infra/                  AWS CDK app: one stack per part of the system
 tests/                  Unit tests
 docs/                   Architecture and decisions
@@ -194,11 +191,11 @@ uv run ruff check .
 
 Infrastructure is defined with the AWS CDK in Python and deployed to `us-east-1` by
 default. You need Node.js (22 or later recommended) and an AWS CLI profile for the target
-account. Every resource is named `crewops-qloo-<stage>-...` and every stack
-`CrewOpsQloo-<stage>-...`, so a stage never touches anything else in the account.
+account. Every resource is named `groundtime-<stage>-...` and every stack
+`Groundtime-<stage>-...`, so a stage never touches anything else in the account.
 
 ```bash
-aws configure --profile crewops-qloo   # once: access keys stay in ~/.aws
+aws configure --profile groundtime   # once: access keys stay in ~/.aws
 
 scripts/cdk.sh bootstrap          # once per account and region
 scripts/cdk.sh diff               # what would change
@@ -212,8 +209,8 @@ target account before calling the latest CDK CLI. The CLI must be at least as ne
 version mismatch". On Windows, run the same settings directly:
 
 ```powershell
-$env:AWS_PROFILE="crewops-qloo"; $env:AWS_REGION="us-east-1"; $env:CREWOPS_STAGE="dev"
-npx --yes aws-cdk@latest deploy --all --profile crewops-qloo
+$env:AWS_PROFILE="groundtime"; $env:AWS_REGION="us-east-1"; $env:CREWOPS_STAGE="dev"
+npx --yes aws-cdk@latest deploy --all --profile groundtime
 ```
 
 ### Settings
@@ -225,7 +222,7 @@ environment; a value set in the shell wins over the file. Only `AWS_PROFILE` is 
 |---|---|---|
 | `AWS_PROFILE` | none | AWS CLI profile to deploy and run with; `default` is refused |
 | `AWS_REGION` | `us-east-1` | Region for every resource |
-| `CREWOPS_STAGE` | `dev` | Prefix for resource names (`crewops-qloo-<stage>-...`) |
+| `CREWOPS_STAGE` | `dev` | Prefix for resource names (`groundtime-<stage>-...`) |
 | `QLOO_API_URL` | `https://hackathon.api.qloo.com` | Qloo Taste AI API |
 | `QLOO_API_KEY` | none | Local runs only; deployed services read Parameter Store |
 | `CREWOPS_QLOO_CACHE_HOURS` | `24` | How long a Qloo answer is reused |
@@ -244,7 +241,7 @@ environment; a value set in the shell wins over the file. Only `AWS_PROFILE` is 
 A minimal `.env`:
 
 ```bash
-AWS_PROFILE=crewops-qloo
+AWS_PROFILE=groundtime
 ```
 
 Access keys never go in `.env`; they stay in `~/.aws`.
@@ -256,8 +253,8 @@ process, so it is in no template, environment variable or log. Store it once per
 typing the key at the prompt rather than on the command line:
 
 ```bash
-read -rs QLOO_KEY && aws ssm put-parameter --name /crewops-qloo-dev/qloo/api-key \
-  --type SecureString --value "$QLOO_KEY" --profile crewops-qloo && unset QLOO_KEY
+read -rs QLOO_KEY && aws ssm put-parameter --name /groundtime-dev/qloo/api-key \
+  --type SecureString --value "$QLOO_KEY" --profile groundtime && unset QLOO_KEY
 ```
 
 For local runs, put `QLOO_API_KEY=...` in `.env` (git-ignored). Try a layover brief for the
@@ -266,6 +263,30 @@ seed week's Delhi night stop, live against Qloo:
 ```bash
 uv run python -m crewops.taste.brief P-2291
 ```
+
+And a passenger's Groundtime plan, for KS434 from Goa four hours late, with the traveller in
+town, past security, or connecting in Bengaluru:
+
+```bash
+uv run python -m crewops.taste.plan tr1001.kapoor --delay KS434=240
+uv run python -m crewops.taste.plan tr1002.fernandes --delay KS434=240
+uv run python -m crewops.taste.plan tr1003.shah
+```
+
+### The Groundtime demo
+
+The demo passengers (`data/team/demo_travellers.json`) book flight numbers, so their trip is
+on whichever day the flight next operates: on the deployed app, today or tomorrow. Their
+accounts are created with the rest of the team (`crewops.auth.provision`). To see Groundtime
+react to a delay:
+
+1. Sign in as a reporter (`imran.sheikh`), open Report, and report KS434 (today's) delayed
+   by 240 minutes.
+2. Sign in as `tr1001.kapoor` (not at the airport yet): My trip shows an outing around Goa,
+   back at the terminal in time. Switch to "past security" and the plan stays in the terminal.
+3. Ask the assistant "my flight is late, what can I do?": the concierge answers from the plan.
+4. Sign in as `neha.joshi` (customer care): Customer care lists KS434 and every Groundtime
+   passenger's plan.
 
 After the first deploy, load the operation into the table (about 5,000 items):
 
@@ -305,13 +326,13 @@ uv run python -m crewops.ingestion.load_seed --replace   # dev/test: start from 
 ### Uploading roster changes
 
 Admins change the operation by uploading a JSON file to the roster bucket (its name is in the
-`CrewOpsQloo-dev-Ingestion` stack outputs). The file holds any of the operation's collections in
+`Groundtime-dev-Ingestion` stack outputs). The file holds any of the operation's collections in
 the same shapes as the seed files, for example `{"pairings": [...]}`; the seed's
 `rosters.json` and `rules.json` can be uploaded as they are.
 
 ```bash
-aws s3 cp week-38.json s3://<roster-bucket>/uploads/week-38.json --profile crewops-qloo
-aws s3 cp s3://<roster-bucket>/results/week-38.json.result.json - --profile crewops-qloo
+aws s3 cp week-38.json s3://<roster-bucket>/uploads/week-38.json --profile groundtime
+aws s3 cp s3://<roster-bucket>/results/week-38.json.result.json - --profile groundtime
 ```
 
 A Lambda merges the upload over the current operation, validates the whole result, and
@@ -372,7 +393,7 @@ stage keeps its table, with point-in-time recovery and deletion protection.
 
 ### The demo team
 
-Sign-in uses a Cognito user pool with one group per role (the `CrewOps-<stage>-Auth` stack).
+Sign-in uses a Cognito user pool with one group per role (the `Groundtime-<stage>-Auth` stack).
 Nobody signs themselves up, and no email or phone is stored. The team is defined in
 `data/team/demo_team.json`: three controllers (one per desk), three approvers, two
 reporters, eleven crew members across the three airlines, an auditor, an admin, a super
@@ -441,7 +462,7 @@ package is built first (it downloads ARM64 wheels; no Docker needed), then deplo
 
 ```bash
 uv run python -m crewops.mcp.package            # builds build/mcp_server
-scripts/cdk.sh deploy CrewOpsQloo-dev-Ingestion CrewOpsQloo-dev-Notify CrewOpsQloo-dev-Mcp
+scripts/cdk.sh deploy Groundtime-dev-Ingestion Groundtime-dev-Notify Groundtime-dev-Mcp
 ```
 
 Until the package is built, the CDK app leaves the MCP stack out and says so, so the other
@@ -553,7 +574,7 @@ nothing happens. Subscribe an address the same way, with `"role": "duty_supervis
 
 A controller or approver can click the bell in the web app's
 header to get a notification from the browser when something reaches their desk or waits for
-approval, even with CrewOps closed. Clicking the notification opens the disruption. The
+approval, even with Groundtime closed. Clicking the notification opens the disruption. The
 browser's push service (Google, Microsoft or Mozilla) delivers it free of charge; each message
 is encrypted for that one browser and signed with the app's key. Set up once, after the MCP
 package is built and the Notify stack deployed:
@@ -584,7 +605,7 @@ the Operations board who is out and when, never why.
 
 Alerts and events name the disruption, its status, and for a team the flights, gates and
 times it acts on, never a crew member. A crew member whose certificate lapses is told on
-their own CrewOps page.
+their own Groundtime page.
 
 ### The web app
 
@@ -657,7 +678,7 @@ secret, so it cannot be guessed. Re-running the command without `--speaker` keep
 with it, both are replaced.
 
 When a controller or approver signs in, they see, and can hear, what came to their desk or
-to approvals since they last had CrewOps open (an open console says so every few minutes);
+to approvals since they last had Groundtime open (an open console says so every few minutes);
 nothing on a first sign-in, and a second tab replays nothing.
 
 ### Asking a question

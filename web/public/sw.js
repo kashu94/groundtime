@@ -23,7 +23,7 @@ self.addEventListener("push", (event) => {
   }
   const url = samePage(data.url);
   event.waitUntil(
-    self.registration.showNotification(data.title || "CrewOps", {
+    self.registration.showNotification(data.title || "Groundtime", {
       body: data.body || "A disruption needs you.",
       tag: data.tag || undefined,
       renotify: Boolean(data.tag),

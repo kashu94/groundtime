@@ -61,7 +61,7 @@ export async function forgetDesktopAlerts(): Promise<void> {
 }
 
 /** Desktop alerts for controllers and approvers: a notification from the browser when a
- * disruption reaches their desk or a plan waits for approval, even with CrewOps closed. */
+ * disruption reaches their desk or a plan waits for approval, even with Groundtime closed. */
 export function DesktopAlerts() {
   const [state, setState] = useState<State>("loading");
   const [key, setKey] = useState("");
@@ -143,7 +143,7 @@ export function DesktopAlerts() {
         ? "Desktop alerts are on in this browser (click to turn off)"
         : problem
           ? `Desktop alerts could not be turned on (${problem}). Click to try again`
-          : "Turn on desktop alerts: a notification when something needs you, even with CrewOps closed";
+          : "Turn on desktop alerts: a notification when something needs you, even with Groundtime closed";
   return (
     <button
       className={cx(

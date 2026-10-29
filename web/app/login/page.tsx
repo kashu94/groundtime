@@ -92,18 +92,20 @@ export default function Login() {
           <span className="grid h-8 w-8 place-items-center rounded-md bg-white text-[#0c2340]">
             <Plane size={16} />
           </span>
-          <span className="text-[15px] font-semibold">CrewOps</span>
-          <span className="text-sm text-[#b9c6d6]">with Qloo taste</span>
+          <span className="text-[15px] font-semibold">Groundtime</span>
+          <span className="text-sm text-[#b9c6d6]">with Qloo</span>
         </div>
         <div className="relative max-w-xl">
           <h2 className="text-[34px] font-semibold leading-tight tracking-[-0.01em]">
-            Crew control for three airlines
+            Every hour on the ground, worth having.
           </h2>
           <p className="mt-3 max-w-md text-base leading-relaxed text-[#d4dde8]">
-            A sick call or a closed gate becomes ranked, legal cover within seconds, on the desk and on the ops-room
-            speaker. A second person approves every roster change.
+            When a flight is delayed, passengers and crew get their safe free time planned with Qloo: places to see and
+            eat, the terminal, and films that end before the gate closes.
           </p>
-          <p className="mt-10 text-sm font-medium text-white">Every cover is checked against seven rules</p>
+          <p className="mt-10 text-sm font-medium text-white">
+            Behind it, crew control: every cover is checked against seven rules
+          </p>
           <dl className="mt-3 grid grid-cols-[7rem_1fr] gap-x-4 gap-y-2 rounded-lg bg-[#040a18]/55 p-4 text-sm ring-1 ring-white/10">
             {RULES.map(([name, text]) => (
               <div key={name} className="contents">
@@ -129,9 +131,12 @@ export default function Login() {
             <span className="grid h-8 w-8 place-items-center rounded-md bg-[#0c2340] text-white">
               <Plane size={16} />
             </span>
-            <span className="text-[15px] font-semibold">CrewOps</span>
-            <span className="text-sm text-muted">with Qloo taste</span>
+            <span className="text-[15px] font-semibold">Groundtime</span>
+            <span className="text-sm text-muted">with Qloo</span>
           </div>
+          <p className="-mt-6 mb-8 text-sm text-muted lg:hidden">
+            Every hour on the ground, worth having. Delayed passengers and crew, planned with Qloo.
+          </p>
           {current && (
             <div className="mb-6 rounded-lg border border-line bg-sunken p-4">
               <p className="text-sm text-foreground">

@@ -45,6 +45,6 @@ export async function POST(request: Request, ctx: RouteContext<"/api/tools/[name
       return Response.json({ error: err.message, code: err.code }, { status });
     }
     console.error(`tool ${name} failed`, err);
-    return Response.json({ error: "CrewOps is unreachable right now. Try again in a moment." }, { status: 502 });
+    return Response.json({ error: "Groundtime is unreachable right now. Try again in a moment." }, { status: 502 });
   }
 }

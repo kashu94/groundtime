@@ -2,6 +2,24 @@
 // (i) icons and the walkthrough; kept here so every screen says the same thing.
 
 export const GLOSSARY = {
+  groundtime: {
+    title: "Groundtime",
+    text:
+      "Turns every hour on the ground into one worth having. When a flight is delayed or a connection is long, it " +
+      "works out each passenger's and crew member's safe free time and plans it with Qloo, checking every stop first.",
+  },
+  airside: {
+    title: "Airside and landside",
+    text:
+      "Landside is the terminal before security, and the city beyond it. Airside is past security: nobody there is " +
+      "ever told to leave the airport, so the plan stays in the terminal.",
+  },
+  taste_match: {
+    title: "Qloo taste match",
+    text:
+      "Qloo ranked this for the things you love, sent as ids and never with your name. A match is only a ranking: " +
+      "opening hours, dietary needs and the time back are checked separately.",
+  },
   delay: {
     title: "Delay",
     text:
