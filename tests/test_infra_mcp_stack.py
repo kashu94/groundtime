@@ -50,7 +50,7 @@ def template(tmp_path_factory):
 def test_runtime_speaks_mcp_behind_the_cognito_authorizer(template):
     (runtime,) = template.find_resources("AWS::BedrockAgentCore::Runtime").values()
     p = runtime["Properties"]
-    assert p["AgentRuntimeName"] == "crewops_qloo_dev_mcp"
+    assert p["AgentRuntimeName"] == "groundtime_dev_mcp"
     assert p["ProtocolConfiguration"] == "MCP"
     jwt = p["AuthorizerConfiguration"]["CustomJWTAuthorizer"]
     assert "AllowedClients" in jwt and "openid-configuration" in json.dumps(jwt["DiscoveryUrl"])
@@ -90,20 +90,18 @@ def test_permissions_are_only_what_the_server_needs(template):
     assert "s3vectors:QueryVectors" in by_action and "sqs:SendMessage" in by_action
     assert "dynamodb:PutItem" in by_action
     # The Qloo key is read from its one parameter at run time, never set in the environment.
-    assert json.dumps(by_action["ssm:GetParameter"]).count("parameter/crewops-qloo-dev/") == 1
-    assert "parameter/crewops-qloo-dev/qloo/api-key" in json.dumps(by_action["ssm:GetParameter"])
+    assert json.dumps(by_action["ssm:GetParameter"]).count("parameter/groundtime-dev/") == 1
+    assert "parameter/groundtime-dev/qloo/api-key" in json.dumps(by_action["ssm:GetParameter"])
     assert "QLOO_API_KEY" not in json.dumps(template.to_json())
     assert "*" not in json.dumps(by_action["bedrock:InvokeModel"]).replace("bedrock:*::", "")
 
 
 def test_runtime_runs_as_the_role_the_queue_policy_names(template):
     roles = template.find_resources("AWS::IAM::Role").values()
-    (role,) = [
-        r for r in roles if r["Properties"].get("RoleName") == "crewops-qloo-dev-mcp-runtime"
-    ]
+    (role,) = [r for r in roles if r["Properties"].get("RoleName") == "groundtime-dev-mcp-runtime"]
     (trust,) = role["Properties"]["AssumeRolePolicyDocument"]["Statement"]
     assert trust["Principal"] == {"Service": "bedrock-agentcore.amazonaws.com"}
-    assert "runtime/crewops_qloo_dev_mcp*" in json.dumps(trust["Condition"]["ArnLike"])
+    assert "runtime/groundtime_dev_mcp*" in json.dumps(trust["Condition"]["ArnLike"])
     (runtime,) = template.find_resources("AWS::BedrockAgentCore::Runtime").values()
     assert "McpServerExecutionRole" not in json.dumps(runtime)
     assert "ExecutionRole" in json.dumps(runtime["Properties"]["RoleArn"])
@@ -118,7 +116,7 @@ def test_mcp_stack_leaves_the_queue_policy_to_the_ingestion_stack(template):
 
 def test_conversation_memory_is_short_term_and_the_server_may_use_it(template):
     (memory,) = template.find_resources("AWS::BedrockAgentCore::Memory").values()
-    assert memory["Properties"]["Name"] == "crewops_qloo_dev_memory"
+    assert memory["Properties"]["Name"] == "groundtime_dev_memory"
     assert memory["Properties"]["EventExpiryDuration"] == 7
     assert "MemoryStrategies" not in memory["Properties"]
     (runtime,) = template.find_resources("AWS::BedrockAgentCore::Runtime").values()

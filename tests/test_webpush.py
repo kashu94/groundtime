@@ -49,7 +49,7 @@ def test_hkdf_matches_rfc_5869_test_case_1():
 
 def test_a_message_decrypts_in_the_browser_and_nowhere_else():
     key, p256dh, auth = browser()
-    message = json.dumps({"title": "CrewOps", "body": "C-1042 unavailable"}).encode()
+    message = json.dumps({"title": "Groundtime", "body": "C-1042 unavailable"}).encode()
     body = encrypt(message, p256dh, auth)
     assert decrypt(body, key, p256dh, auth) == message
     other, _, _ = browser()
@@ -138,7 +138,7 @@ def test_desktop_alerts_go_to_the_desk_or_the_approvers_and_gone_browsers_are_fo
     assert push_alerts.process([analysed, submitted], subs, send, forgotten.append) == 1
     assert [u for u, _ in sent] == ["ananya", "meera"]
     note = sent[0][1]
-    assert note["url"] == "/console/r-sick1042" and note["title"] == "CrewOps: New on your desk"
+    assert note["url"] == "/console/r-sick1042" and note["title"] == "Groundtime: New on your desk"
     assert "C-1042" not in json.dumps(note)  # names the disruption, never the crew member
     assert [s["username"] for s in forgotten] == ["meera"]
 
@@ -219,4 +219,4 @@ def test_the_severity_is_said_first_in_desktop_alerts():
             },
         }
     }
-    assert message(record)["title"] == "CrewOps: High severity: new on your desk"
+    assert message(record)["title"] == "Groundtime: High severity: new on your desk"

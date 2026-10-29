@@ -72,7 +72,7 @@ def test_which_changes_alert_whom(before, after, role, words):
         assert alert is None
         return
     assert alert.role == role and words in alert.subject and len(alert.subject) <= 100
-    assert alert.subject.startswith("CrewOps dev:")
+    assert alert.subject.startswith("Groundtime dev:")
 
 
 def test_events_and_alerts_never_name_a_person():
@@ -180,7 +180,7 @@ def test_console_events_are_signed_for_appsync_and_batched(monkeypatch):
 @pytest.fixture
 def subscriptions(ops_table):
     sns = boto3.client("sns", region_name="us-east-1")
-    topic = sns.create_topic(Name="crewops-qloo-test-alerts")["TopicArn"]
+    topic = sns.create_topic(Name="groundtime-test-alerts")["TopicArn"]
     return AlertSubscriptions(sns, topic, ops_table)
 
 
@@ -323,9 +323,9 @@ def test_each_team_named_by_the_analysis_gets_one_email_when_it_is_analysed():
     assert list(sent) == ["controller", "flight_info", "station_ops", "approver"]
     station = sent["station_ops"].message
     assert "BLR: Hold boarding at BLR-G6" in station and "BOM: KS413" in station
-    # In-app notices are read in CrewOps, never emailed.
+    # In-app notices are read in Groundtime, never emailed.
     assert all("recurrent training" not in a[0].message for a in alerts.sent)
-    assert sent["flight_info"].subject.startswith("CrewOps dev: Flight info")
+    assert sent["flight_info"].subject.startswith("Groundtime dev: Flight info")
 
 
 def test_an_address_can_follow_an_operational_team(subscriptions):

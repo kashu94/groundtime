@@ -31,7 +31,7 @@ def template():
 
 def test_alert_topic_has_no_subscribers_and_requires_tls(template):
     (topic,) = template.find_resources("AWS::SNS::Topic").values()
-    assert topic["Properties"]["TopicName"] == "crewops-qloo-dev-alerts"
+    assert topic["Properties"]["TopicName"] == "groundtime-dev-alerts"
     assert template.find_resources("AWS::SNS::Subscription") == {}
     (policy,) = template.find_resources("AWS::SNS::TopicPolicy").values()
     assert "aws:SecureTransport" in json.dumps(policy)
@@ -130,7 +130,7 @@ def test_escalation_checks_are_scheduled_and_run_with_least_privilege(template):
     notifier = actions_of(template, "Notifier")
     assert {"scheduler:CreateSchedule", "iam:PassRole"} <= notifier
     policy = json.dumps(template.find_resources("AWS::IAM::Policy"))
-    assert "schedule/default/crewops-qloo-dev-esc-*" in policy  # only its own schedules
+    assert "schedule/default/groundtime-dev-esc-*" in policy  # only its own schedules
     escalation = actions_of(template, "Escalation")
     assert {"dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "sns:Publish"} <= escalation
     assert not any(a in escalation for a in ("dynamodb:DeleteItem", "dynamodb:UpdateItem"))
@@ -170,7 +170,7 @@ def test_with_the_package_the_notifier_sends_desktop_alerts(tmp_path):
     } <= actions
     assert not any(a.startswith("dynamodb:Put") or a.startswith("dynamodb:Update") for a in actions)
     policy = json.dumps(t.find_resources("AWS::IAM::Policy"))
-    assert "parameter/crewops-qloo-dev/push/*" in policy
+    assert "parameter/groundtime-dev/push/*" in policy
     (fn,) = [
         f["Properties"]
         for f in t.find_resources("AWS::Lambda::Function").values()

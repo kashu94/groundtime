@@ -1,4 +1,4 @@
-"""Desktop (web push) alerts, so people hear about a disruption with CrewOps closed.
+"""Desktop (web push) alerts, so people hear about a disruption with Groundtime closed.
 
 The notifier Lambda runs this after the console and email alerts, for the people
 ``crewops.notify.recipients`` picks: the desk controller for an analysed or sent-back
@@ -51,7 +51,7 @@ def message(record: dict[str, Any]) -> dict[str, Any] | None:
     if level in ("high", "medium"):
         title = f"{level.title()} severity: {title.lower()}"
     return {
-        "title": f"CrewOps: {title}",
+        "title": f"Groundtime: {title}",
         "body": body,
         "url": f"/console/{change.disruption_id}",
         "tag": change.disruption_id,

@@ -31,7 +31,9 @@ GROUP_ORDER = (
     Role.CONTROLLER,
     Role.AUDITOR,
     Role.REPORTER,
+    Role.CUSTOMER_CARE,
     Role.CREW,
+    Role.TRAVELLER,
     Role.SPEAKER,
 )
 """Cognito group precedence, highest first. Roles add up in the application; the order only

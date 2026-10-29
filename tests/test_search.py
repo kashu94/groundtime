@@ -17,7 +17,7 @@ from crewops.search.vectors import (
 )
 
 DIMS = 64
-BUCKET = "crewops-qloo-test-vectors"
+BUCKET = "groundtime-test-vectors"
 
 
 def fake_embed(text: str) -> list[float]:

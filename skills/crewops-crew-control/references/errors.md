@@ -6,7 +6,7 @@ unchanged, and never try a different tool to get round one.
 
 | Code | When | What to do |
 |---|---|---|
-| `UNAUTHORIZED` | The sign-in token is missing, expired or not from CrewOps | Ask the person to sign in again; never ask for their password in chat |
+| `UNAUTHORIZED` | The sign-in token is missing, expired or not from Groundtime | Ask the person to sign in again; never ask for their password in chat |
 | `FORBIDDEN` | Their role may not do this, or the disruption is not on their desk | Say who can (an approver, the owning desk, an admin). For another desk's seat, offer `suggest_cover` |
 | `NOT_FOUND` | No such disruption or plan that they may read | Check the id with them; ids look like `r-1a2b3c4d5e6f` and `pl-…` |
 | `INVALID` | A field is wrong: unknown crew id, bad date, dates outside today to two months ahead (leave: tomorrow to the end of the rostered period), a reason not on the list | Fix it with the person. For ids, `report_reference` or `crew_tool("suggest_crew_ids", …)`; confirm before using a suggestion |
@@ -26,7 +26,7 @@ unchanged, and never try a different tool to get round one.
 - `approve_plan` → `STALE` with `reasons`: legality was re-checked against the roster as it
   is now and something changed (a crew member reported out, another plan committed). The
   plan is back with the controller; tell the approver why.
-- `ask` → `source: "refused"`: the question read as an attempt to override CrewOps' rules
+- `ask` → `source: "refused"`: the question read as an attempt to override Groundtime' rules
   (or tripped the content guardrail). It has been logged for the administrator. Do not
   rephrase it to get past the check.
 - `ask` → `models.state: "open"`: the model service is paused after repeated failures;

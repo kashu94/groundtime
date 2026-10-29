@@ -13,7 +13,7 @@ from crewops.config import Settings  # noqa: E402
 
 def synth(stage: str) -> Template:
     settings = Settings.from_env({"CREWOPS_STAGE": stage})
-    stack = DataStack(App(), f"CrewOpsQloo-{stage}-Data", settings=settings)
+    stack = DataStack(App(), f"Groundtime-{stage}-Data", settings=settings)
     return Template.from_stack(stack)
 
 
@@ -28,7 +28,7 @@ def test_single_table_with_keys_stream_and_ttl():
     t.has_resource_properties(
         "AWS::DynamoDB::GlobalTable",
         {
-            "TableName": "crewops-qloo-dev-ops",
+            "TableName": "groundtime-dev-ops",
             "BillingMode": "PAY_PER_REQUEST",
             "KeySchema": [
                 {"AttributeName": "pk", "KeyType": "HASH"},

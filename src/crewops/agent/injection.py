@@ -65,7 +65,7 @@ PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
 )
 
 REFUSAL = (
-    "Security alert: that reads as an attempt to override CrewOps' rules, so it was refused and "
+    "Security alert: that reads as an attempt to override Groundtime' rules, so it was refused and "
     "logged for the administrator. Ask about crew, flights, rules or disruptions instead."
 )
 

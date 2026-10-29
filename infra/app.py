@@ -77,7 +77,7 @@ def main() -> None:
             file=sys.stderr,
         )
 
-    Tags.of(app).add("project", "crewops-qloo")
+    Tags.of(app).add("project", "groundtime")
     Tags.of(app).add("stage", settings.stage)
     app.synth()
 

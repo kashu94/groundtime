@@ -4,7 +4,7 @@
     uv run python -m crewops.web_env --speaker   # ...and the desk speaker's device sign-in
 
 The web app needs the Cognito app client, the MCP runtime and the live-events API. They
-are read from the ``CrewOpsQloo-<stage>-Auth``, ``-Mcp`` and ``-Notify`` stack outputs, so
+are read from the ``Groundtime-<stage>-Auth``, ``-Mcp`` and ``-Notify`` stack outputs, so
 nothing is copied by hand. The file holds no secret (the app client has none) and is
 ignored by git. The AWS profile named in ``.env`` is passed on for the spoken answers
 (Amazon Polly), which the app's server calls with your credentials when run locally.

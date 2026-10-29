@@ -220,12 +220,12 @@ class Settings:
 
     @property
     def prefix(self) -> str:
-        return f"crewops-qloo-{self.stage}"
+        return f"groundtime-{self.stage}"
 
     @property
     def stack_prefix(self) -> str:
         """CloudFormation stacks are ``<stack_prefix>-Data``, ``-Auth`` and so on."""
-        return f"CrewOpsQloo-{self.stage}"
+        return f"Groundtime-{self.stage}"
 
     @property
     def table_name(self) -> str:
@@ -268,7 +268,7 @@ class Settings:
     @property
     def memory_name(self) -> str:
         # AgentCore Memory names don't allow hyphens
-        return f"crewops_qloo_{self.stage.replace('-', '_')}_memory"
+        return f"groundtime_{self.stage.replace('-', '_')}_memory"
 
     @property
     def issuer(self) -> str | None:
@@ -280,7 +280,7 @@ class Settings:
     @property
     def mcp_runtime_name(self) -> str:
         # same naming rule as memory_name
-        return f"crewops_qloo_{self.stage.replace('-', '_')}_mcp"
+        return f"groundtime_{self.stage.replace('-', '_')}_mcp"
 
     @property
     def mcp_runtime_role(self) -> str:

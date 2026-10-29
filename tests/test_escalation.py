@@ -29,7 +29,7 @@ NOW = datetime(2026, 10, 13, 5, 0, tzinfo=UTC)
 def test_a_check_is_scheduled_once_for_work_that_reaches_a_desk():
     scheduler = FakeScheduler()
     kwargs = {
-        "prefix": "crewops-qloo-dev",
+        "prefix": "groundtime-dev",
         "function_arn": "fn",
         "role_arn": "role",
         "minutes": 10,
@@ -37,7 +37,7 @@ def test_a_check_is_scheduled_once_for_work_that_reaches_a_desk():
     }
     analysed = Change("r-sick1042", "REPORTED", "OPTIONS_READY", "crew_unavailable")
     name = schedule_check(scheduler, analysed, **kwargs)
-    assert name.startswith("crewops-qloo-dev-esc-1791867600-") and name.endswith("-r-sick1042")
+    assert name.startswith("groundtime-dev-esc-1791867600-") and name.endswith("-r-sick1042")
     (made,) = scheduler.created
     assert made["ScheduleExpression"] == "at(2026-10-13T05:10:00)"
     assert made["ScheduleExpressionTimezone"] == "UTC" and made["ActionAfterCompletion"] == "DELETE"

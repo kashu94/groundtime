@@ -1,4 +1,4 @@
-"""The CrewOps Agent Skill: valid by the Agent Skills specification, and true to the server
+"""The Groundtime Agent Skill: valid by the Agent Skills specification, and true to the server
 (every tool it calls exists, every rule and strategy it names is the engine's)."""
 
 import asyncio

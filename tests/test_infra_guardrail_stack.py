@@ -25,7 +25,7 @@ def template():
 def test_guardrail_screens_content_and_prompt_attacks(template):
     (guardrail,) = template.find_resources("AWS::Bedrock::Guardrail").values()
     props = guardrail["Properties"]
-    assert props["Name"] == "crewops-qloo-dev-guardrail"
+    assert props["Name"] == "groundtime-dev-guardrail"
     filters = {f["Type"]: f for f in props["ContentPolicyConfig"]["FiltersConfig"]}
     assert set(filters) == {"HATE", "INSULTS", "SEXUAL", "VIOLENCE", "MISCONDUCT", "PROMPT_ATTACK"}
     assert filters["PROMPT_ATTACK"]["InputStrength"] == "HIGH"

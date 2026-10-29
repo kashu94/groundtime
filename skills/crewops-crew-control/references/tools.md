@@ -1,4 +1,4 @@
-# CrewOps MCP tools
+# Groundtime MCP tools
 
 Generated from the server by `python -m crewops.mcp.skill_docs`; do not edit by hand.
 
@@ -58,17 +58,41 @@ Call one deterministic tool by name (see `list_crew_tools`) with JSON arguments,
 
 Parameters: `name` (string, required); `arguments` (null/object, optional, default `None`).
 
+### `delayed_flights`: reads only
+
+Customer care and operations staff: delayed flights still to leave, with how many are booked and how many have Groundtime.
+
+Parameters: none.
+
 ### `disruptions`: reads only
 
 Recent disruptions in every status, newest report first, with their analysis summary: the desk's chronological feed.
 
 Parameters: `limit` (integer, optional, default `40`).
 
+### `flight_care`: reads only
+
+Customer care and operations staff: every Groundtime traveller waiting for a flight (e.g. KS434-2026-10-13), with their plan; dietary needs show only as met.
+
+Parameters: `flight_id` (string, required).
+
 ### `list_crew_tools`: reads only
 
 The deterministic crew-operations tools the signed-in person may call directly with `crew_tool`, with their input schemas.
 
 Parameters: none.
+
+### `my_groundtime`: reads only
+
+Traveller: your wait and the plan for it. `position` is where you are: away (not at the airport yet), landside (at the terminal, before security) or airside (past security, where nobody may leave). Places and films come from Qloo for your taste; every stop is checked for opening hours, your dietary needs and getting back in time.
+
+Parameters: `position` (string, optional, default `''`).
+
+### `my_layover`: reads only
+
+Crew: places to eat near the crew hotel on your next night stop, within your rest (free time, sleep before the next report). Staff: name the pairing; the brief never says whose dietary needs are whose.
+
+Parameters: `pairing_id` (string, optional, default `''`).
 
 ### `my_queue`: reads only
 
@@ -85,6 +109,12 @@ Parameters: `scope` (string, optional, default `'mine'`); `limit` (integer, opti
 ### `my_roster`: reads only
 
 Crew: your own pairings, duty days and duty clock.
+
+Parameters: none.
+
+### `my_taste`: reads only
+
+Traveller or crew: the things you love and your dietary needs, as you saved them.
 
 Parameters: none.
 
@@ -160,6 +190,12 @@ The legality rules' adjustable thresholds: current value, allowed range (never l
 
 Parameters: none.
 
+### `save_my_taste`: **changes**
+
+Traveller or crew: save up to five things you love (each an id from `taste_search`: {"id", "name", "type"}), dietary needs (vegetarian, vegan, jain, halal, gluten_free) and, for crew, wind_down (quiet or lively). Replaces the profile.
+
+Parameters: `loves` (array/null, optional, default `None`); `dietary` (array/null, optional, default `None`); `wind_down` (string, optional, default `''`).
+
 ### `set_rule_threshold`: **commits**
 
 Admin: change one threshold from the value you saw (`expected`) to `value`, saying why. Only stricter values, or the regulatory one, are accepted; the change is audited and the engine uses it within a minute.
@@ -195,6 +231,12 @@ Parameters: `disruption_id` (string, required); `choices` (null/object, optional
 Controller: suggest cover for a seat on another desk's disruption (seat as "P-2291/Captain/C-1042"). The owning desk sees it and may adopt it; it plans nothing.
 
 Parameters: `disruption_id` (string, required); `seat` (string, required); `crew_id` (string, required); `note` (string, optional, default `''`).
+
+### `taste_search`: reads only
+
+Traveller or crew: find something you love in Qloo's catalogue. kind is one of urn:entity:artist, urn:entity:movie, urn:entity:tv_show, urn:entity:book, urn:entity:podcast or urn:entity:place.
+
+Parameters: `query` (string, required); `kind` (string, required).
 
 ### `team_accounts`: reads only
 

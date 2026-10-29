@@ -59,7 +59,7 @@ class NotifyStack(Stack):
             self,
             "Alerts",
             topic_name=settings.alerts_topic,
-            display_name="CrewOps alerts",
+            display_name="Groundtime alerts",
             enforce_ssl=True,
         )
 

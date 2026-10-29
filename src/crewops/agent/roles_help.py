@@ -33,6 +33,8 @@ NAMES = {
     Role.AUDITOR: "an auditor",
     Role.CREW: "crew",
     Role.SPEAKER: "the ops-room speaker",
+    Role.TRAVELLER: "a traveller",
+    Role.CUSTOMER_CARE: "customer care",
 }
 
 _ADMIN = (
@@ -267,7 +269,7 @@ def about_roles(question: str, caller: Caller) -> str | None:
         return None
     if WHO_ARE_YOU_RE.match(bare):
         return (
-            "I'm CrewOps, the crew-control assistant for Deccan Express, Konkan Skyways and "
+            "I'm Groundtime, the crew-control assistant for Deccan Express, Konkan Skyways and "
             "Nilgiri Connect. I'm here to help keep every flight legally crewed. "
             + help_for(caller)
         )
@@ -304,20 +306,20 @@ def about_roles(question: str, caller: Caller) -> str | None:
     if HOW_LEAVE_RE.match(bare):
         if caller.roles & {Role.ADMIN, Role.SUPER_ADMIN}:
             return (
-                "On the Admin page in the CrewOps console, under Planned leave: pick the crew "
+                "On the Admin page in the Groundtime console, under Planned leave: pick the crew "
                 "member, the dates and the reason. Their trips on those days are re-crewed ahead."
             )
-        return "Planned leave is booked by an admin, on the Admin page in the CrewOps console."
+        return "Planned leave is booked by an admin, on the Admin page in the Groundtime console."
     if HOW_REPORT_RE.match(bare):
         if caller.roles & FILERS:
             return (
-                "Open Report in the CrewOps console, choose what happened (sick crew, a delay, a "
-                "gate change, a gate closure or an aircraft fault), fill in the flight or crew "
+                "Open Report in the Groundtime console, choose what happened (sick crew, a delay, "
+                "a gate change, a gate closure or an aircraft fault), fill in the flight or crew "
                 "member, and send. Crew control see it with ranked legal cover within seconds."
             )
         return (
             "Reports are filed by the reporting desk, a controller or an approver, from Report "
-            "in the CrewOps console."
+            "in the Groundtime console."
         )
     if (m := WHO_DOES_RE.match(bare)) and not re.search(r"\d", bare):
         # "who approves plans" reads as "who can approve plans"

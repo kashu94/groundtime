@@ -1,7 +1,7 @@
 [project]
-name = "crewops-qloo"
+name = "groundtime"
 version = "0.1.0"
-description = "Crew control agent grounded in cultural taste: Qloo Taste AI for layover and passenger care, built on AWS (Bedrock, AgentCore, DynamoDB, S3 Vectors) and the Model Context Protocol."
+description = "Groundtime: turns a delay or a long connection into time well spent for passengers and crew, with Qloo Taste AI choosing and a rules engine checking; crew control on AWS (Bedrock, AgentCore, DynamoDB, S3 Vectors) and the Model Context Protocol."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"

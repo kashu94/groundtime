@@ -30,7 +30,7 @@ PUSH_HOSTS = (
 )
 """Allow-list for subscription endpoints, plus ``*.notify.windows.com``. The endpoint comes
 from the browser, so without this the notifier would POST wherever it was told."""
-SUBJECT = "https://github.com/kashu94/crewops-qloo-hackathon"
+SUBJECT = "https://github.com/kashu94/groundtime"
 """VAPID ``sub`` claim, a contact URL for the push services."""
 RECORD_SIZE = 4096
 
@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
     import sys
 
-    parser = argparse.ArgumentParser(description="Web push keys for CrewOps")
+    parser = argparse.ArgumentParser(description="Web push keys for Groundtime")
     parser.add_argument("command", choices=["keys"])
     parser.add_argument("--replace", action="store_true", help="replace existing keys")
     args = parser.parse_args(argv)

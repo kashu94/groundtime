@@ -1,6 +1,6 @@
 # Legality, cover and severity
 
-How CrewOps decides who may fly, how cover is ranked, and how serious a disruption is.
+How Groundtime decides who may fly, how cover is ranked, and how serious a disruption is.
 Everything here is computed by the engine; this page is for explaining its answers, not
 for working them out yourself. Quote the numbers the tools return.
 

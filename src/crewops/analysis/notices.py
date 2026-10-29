@@ -7,7 +7,7 @@ Report                      Told, besides crew control
 ==========================  ==================================================================
 Sick crew (one or more)     only if a seat has no legal cover: operations monitoring and
                             customer care, as the flight may not operate
-Certificate lapse           the crew member (on their CrewOps page) and training and crew
+Certificate lapse           the crew member (on their Groundtime page) and training and crew
                             records, who book the renewal
 Flight delay                flight information (screens, website, app), operations
 Aircraft fault              monitoring (tells the captain), the departure station's duty
@@ -22,7 +22,7 @@ Gate closure, gate change   the station's gate control and duty manager, flight 
 ==========================  ==================================================================
 
 Email alerts carry flights, gates, stations and times, never a crew member's name or id:
-those are read in CrewOps, signed in. Each notice names the person on duty for the team,
+those are read in Groundtime, signed in. Each notice names the person on duty for the team,
 from the contact directory, so the record shows who was told, not only which team.
 """
 

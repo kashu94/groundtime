@@ -50,13 +50,13 @@ def test_the_public_push_key_is_written_once_made():
             self.value = value
 
         def get_parameter(self, Name):
-            assert Name == "/crewops-qloo-dev/push/vapid-public"
+            assert Name == "/groundtime-dev/push/vapid-public"
             if self.value is None:
                 raise ClientError({"Error": {"Code": "ParameterNotFound"}}, "GetParameter")
             return {"Parameter": {"Value": self.value}}
 
-    assert push_key_line(Ssm("BAbc_d-1"), "/crewops-qloo-dev/push") == [
+    assert push_key_line(Ssm("BAbc_d-1"), "/groundtime-dev/push") == [
         "CREWOPS_PUSH_PUBLIC_KEY=BAbc_d-1"
     ]
-    assert push_key_line(Ssm(None), "/crewops-qloo-dev/push") == []
-    assert push_key_line(Ssm("x\nAWS_PROFILE=evil"), "/crewops-qloo-dev/push") == []
+    assert push_key_line(Ssm(None), "/groundtime-dev/push") == []
+    assert push_key_line(Ssm("x\nAWS_PROFILE=evil"), "/groundtime-dev/push") == []

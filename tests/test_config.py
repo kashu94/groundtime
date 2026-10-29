@@ -19,12 +19,12 @@ def test_defaults_without_environment():
 
 def test_resource_names_derive_from_stage():
     s = Settings.from_env({"CREWOPS_STAGE": "demo"})
-    assert s.table_name == "crewops-qloo-demo-ops"
-    assert s.vector_bucket == "crewops-qloo-demo-vectors"
-    assert s.ingest_queue == "crewops-qloo-demo-ingest"
-    assert s.ingest_dlq == "crewops-qloo-demo-ingest-dlq"
-    assert s.roster_bucket == "crewops-qloo-demo-rosters"
-    assert s.alerts_topic == "crewops-qloo-demo-alerts"
+    assert s.table_name == "groundtime-demo-ops"
+    assert s.vector_bucket == "groundtime-demo-vectors"
+    assert s.ingest_queue == "groundtime-demo-ingest"
+    assert s.ingest_dlq == "groundtime-demo-ingest-dlq"
+    assert s.roster_bucket == "groundtime-demo-rosters"
+    assert s.alerts_topic == "groundtime-demo-alerts"
 
 
 def test_overrides_are_applied():

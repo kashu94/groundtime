@@ -111,7 +111,7 @@ def test_a_timeout_is_unavailable_not_a_crash():
 
 def test_the_deployed_key_is_read_from_parameter_store_once():
     settings = Settings.from_env({"CREWOPS_STAGE": "dev"})
-    assert settings.qloo_key_parameter == "/crewops-qloo-dev/qloo/api-key"
+    assert settings.qloo_key_parameter == "/groundtime-dev/qloo/api-key"
     reads = []
 
     class Ssm:
@@ -126,6 +126,6 @@ def test_the_deployed_key_is_read_from_parameter_store_once():
 
     key = key_from_settings(settings, Session())
     assert key() == key() == "k-ssm"
-    assert reads == [("/crewops-qloo-dev/qloo/api-key", True)]
+    assert reads == [("/groundtime-dev/qloo/api-key", True)]
     local = Settings.from_env({"QLOO_API_KEY": "k-local"})
     assert key_from_settings(local)() == "k-local"

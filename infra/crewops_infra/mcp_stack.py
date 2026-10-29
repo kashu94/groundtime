@@ -79,7 +79,7 @@ class McpStack(Stack):
             self,
             "ExecutionRole",
             role_name=settings.mcp_runtime_role,
-            description="Execution role for the CrewOps MCP server",
+            description="Execution role for the Groundtime MCP server",
             assumed_by=iam.ServicePrincipal(
                 "bedrock-agentcore.amazonaws.com",
                 conditions={
@@ -96,7 +96,7 @@ class McpStack(Stack):
             self,
             "Conversations",
             memory_name=settings.memory_name,
-            description="CrewOps conversations: each one's previous turn",
+            description="Groundtime conversations: each one's previous turn",
             expiration_duration=Duration.days(MEMORY_DAYS),
         )
 
@@ -104,7 +104,7 @@ class McpStack(Stack):
             self,
             "McpServer",
             runtime_name=settings.mcp_runtime_name,
-            description="CrewOps MCP server",
+            description="Groundtime MCP server",
             execution_role=role,
             agent_runtime_artifact=agentcore.AgentRuntimeArtifact.from_code_asset(
                 path=str(package),

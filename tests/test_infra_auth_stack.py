@@ -26,7 +26,7 @@ def test_pool_is_admin_created_username_only_and_sends_nothing():
     t = synth()
     (pool,) = t.find_resources("AWS::Cognito::UserPool").values()
     p = pool["Properties"]
-    assert p["UserPoolName"] == "crewops-qloo-dev-users"
+    assert p["UserPoolName"] == "groundtime-dev-users"
     assert p["AdminCreateUserConfig"]["AllowAdminCreateUserOnly"] is True
     assert "UsernameAttributes" not in p and "AliasAttributes" not in p
     assert p["AccountRecoverySetting"]["RecoveryMechanisms"] == [

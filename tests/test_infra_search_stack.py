@@ -21,7 +21,7 @@ def test_vector_bucket_with_three_cosine_indexes():
     )
     t = Template.from_stack(stack)
     t.has_resource_properties(
-        "AWS::S3Vectors::VectorBucket", {"VectorBucketName": "crewops-qloo-dev-vectors"}
+        "AWS::S3Vectors::VectorBucket", {"VectorBucketName": "groundtime-dev-vectors"}
     )
     indexes = t.find_resources("AWS::S3Vectors::Index")
     props = sorted(

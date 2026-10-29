@@ -23,7 +23,7 @@ eval "${exports}"
 export JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION=1
 
 if [[ -z "${AWS_PROFILE:-}" || "${AWS_PROFILE}" == "default" ]]; then
-  echo "Set AWS_PROFILE in .env to your named profile (for example: AWS_PROFILE=crewops-qloo)." >&2
+  echo "Set AWS_PROFILE in .env to your named profile (for example: AWS_PROFILE=groundtime)." >&2
   echo "The default profile is refused on purpose." >&2
   exit 1
 fi

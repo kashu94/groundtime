@@ -32,7 +32,7 @@ def test_private_encrypted_bucket_named_per_account():
     t.has_resource_properties(
         "AWS::S3::Bucket",
         {
-            "BucketName": "crewops-qloo-dev-rosters-111111111111",
+            "BucketName": "groundtime-dev-rosters-111111111111",
             "PublicAccessBlockConfiguration": {
                 "BlockPublicAcls": True,
                 "BlockPublicPolicy": True,
@@ -85,7 +85,7 @@ def test_ingest_queue_with_dead_letters_after_three_tries():
     t.has_resource_properties(
         "AWS::SQS::Queue",
         {
-            "QueueName": "crewops-qloo-dev-ingest",
+            "QueueName": "groundtime-dev-ingest",
             "VisibilityTimeout": 180,
             "RedrivePolicy": Match.object_like({"maxReceiveCount": 3}),
             "SqsManagedSseEnabled": True,
@@ -93,7 +93,7 @@ def test_ingest_queue_with_dead_letters_after_three_tries():
     )
     t.has_resource_properties(
         "AWS::SQS::Queue",
-        {"QueueName": "crewops-qloo-dev-ingest-dlq", "MessageRetentionPeriod": 14 * 24 * 3600},
+        {"QueueName": "groundtime-dev-ingest-dlq", "MessageRetentionPeriod": 14 * 24 * 3600},
     )
 
 
@@ -146,7 +146,7 @@ def test_one_queue_policy_keeps_tls_and_admits_only_the_server_and_operators():
     deny = by_sid["OnlyTheMcpServerSendsReports"]
     assert deny["Effect"] == "Deny" and deny["Action"] == "sqs:SendMessage"
     allowed = json.dumps(deny["Condition"]["ArnNotEquals"]["aws:PrincipalArn"])
-    assert ":role/crewops-qloo-dev-mcp-runtime" in allowed and OPERATOR in allowed
+    assert ":role/groundtime-dev-mcp-runtime" in allowed and OPERATOR in allowed
 
 
 def test_without_operators_only_the_server_may_send():
@@ -158,7 +158,7 @@ def test_without_operators_only_the_server_may_send():
         if s.get("Sid") == "OnlyTheMcpServerSendsReports"
     ]
     allowed = json.dumps(deny["Condition"]["ArnNotEquals"]["aws:PrincipalArn"])
-    assert ":role/crewops-qloo-dev-mcp-runtime" in allowed and ":user/" not in allowed
+    assert ":role/groundtime-dev-mcp-runtime" in allowed and ":user/" not in allowed
 
 
 def worker_writes() -> set[str]:

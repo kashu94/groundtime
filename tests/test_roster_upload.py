@@ -10,7 +10,7 @@ from crewops.ingestion import roster_upload
 from crewops.ingestion.seed import default_seed_dir, load_seed
 from crewops.store.ops_store import OpsStore
 
-BUCKET = "crewops-qloo-test-rosters-000000000000"
+BUCKET = "groundtime-test-rosters-000000000000"
 
 
 @pytest.fixture

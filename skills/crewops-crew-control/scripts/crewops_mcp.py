@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Call the CrewOps MCP server from a shell, as one signed-in person.
+"""Call the Groundtime MCP server from a shell, as one signed-in person.
 
-For agents (or people) without an MCP client configured. Signs in to CrewOps' Cognito
+For agents (or people) without an MCP client configured. Signs in to Groundtime' Cognito
 user pool, then speaks MCP over Streamable HTTP to the AgentCore runtime:
 
     python scripts/crewops_mcp.py tools
@@ -55,7 +55,7 @@ def server_url() -> str:
 
 
 def access_token() -> str:
-    """A CrewOps access token: the given one, or a fresh sign-in."""
+    """A Groundtime access token: the given one, or a fresh sign-in."""
     if token := os.environ.get("CREWOPS_ACCESS_TOKEN", "").strip():
         return token
     import boto3

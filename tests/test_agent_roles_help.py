@@ -24,7 +24,7 @@ def pipeline():
 
 def test_who_are_you_introduces_the_assistant_and_who_am_i_still_names_the_caller(pipeline):
     intro = pipeline.answer("Who are you?", CREW).text
-    assert intro.startswith("I'm CrewOps") and "when do I fly next" in intro
+    assert intro.startswith("I'm Groundtime") and "when do I fly next" in intro
     assert pipeline.answer("who am i", CREW).text.startswith("You're A. Nair (C-1042)")
     assert about_roles("who are you covering on P-2291", CONTROLLER) is None
 

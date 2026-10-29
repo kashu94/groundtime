@@ -20,7 +20,7 @@ to update the screens, gate control to move gates. One email per team with all i
 
 Events and alerts carry the disruption id, report type and statuses. Team alerts also carry
 the flights, gates, stations and times the team acts on. Crew names and ids are left out on
-purpose; people read those in CrewOps after signing in, where role checks apply.
+purpose; people read those in Groundtime after signing in, where role checks apply.
 """
 
 from __future__ import annotations
@@ -108,10 +108,10 @@ def team_alerts(record: dict[str, Any], change: Change, stage: str) -> list[Aler
         body = (
             f"Disruption {change.disruption_id} ({what}) needs {title.lower()}:\n\n"
             + "\n".join(lines)
-            + "\n\nSign in to CrewOps for the full record. You receive this because a CrewOps "
-            f"administrator subscribed this address to {title.lower()} alerts."
+            + "\n\nSign in to Groundtime for the full record. You receive this because a "
+            f"Groundtime administrator subscribed this address to {title.lower()} alerts."
         )
-        subject = f"CrewOps {stage}: {title}, {what} {change.disruption_id}"
+        subject = f"Groundtime {stage}: {title}, {what} {change.disruption_id}"
         out.append(Alert(team, subject[:100], body))
     return out
 
@@ -120,7 +120,7 @@ def alert_for(change: Change, stage: str) -> Alert | None:
     what = change.report_type.replace("_", " ")
     ref = f"Disruption {change.disruption_id} ({what})"
     footer = (
-        "\n\nSign in to CrewOps to see the details. You receive this because a CrewOps "
+        "\n\nSign in to Groundtime to see the details. You receive this because a Groundtime "
         "administrator subscribed this address to {role} alerts."
     )
     if change.before == STATUS_REPORTED and change.after == STATUS_OPTIONS_READY:
@@ -140,4 +140,4 @@ def alert_for(change: Change, stage: str) -> Alert | None:
         body = f"{ref} is back with controllers: its resolution was sent back."
     else:
         return None
-    return Alert(role, f"CrewOps {stage}: {subject}"[:100], body + footer.format(role=role))
+    return Alert(role, f"Groundtime {stage}: {subject}"[:100], body + footer.format(role=role))

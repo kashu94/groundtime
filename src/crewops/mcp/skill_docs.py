@@ -1,4 +1,4 @@
-"""Write the CrewOps Agent Skill's tool reference from the server itself.
+"""Write the Groundtime Agent Skill's tool reference from the server itself.
 
     uv run python -m crewops.mcp.skill_docs          # rewrites the reference
     uv run python -m crewops.mcp.skill_docs --check  # exits 1 if it is out of date
@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[3]
 REFERENCE = ROOT / "skills" / "crewops-crew-control" / "references" / "tools.md"
 
 HEADER = """\
-# CrewOps MCP tools
+# Groundtime MCP tools
 
 Generated from the server by `python -m crewops.mcp.skill_docs`; do not edit by hand.
 

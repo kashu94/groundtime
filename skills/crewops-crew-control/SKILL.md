@@ -1,18 +1,18 @@
 ---
 name: crewops-crew-control
-description: Work airline crew disruptions through the CrewOps MCP server the way a crew controller does. Use when someone asks about crew availability, sick or unavailable crew, flight delays, gate or station problems, legal cover for a pilot or cabin seat, duty and rest limits, plans waiting for approval, or what is on a controller's desk; when reporting a disruption or booking planned leave; or when submitting, approving or rejecting a cover plan. Covers the triage-to-commit workflow, four-eyes approval, the seven legality rules, severity, roles, and how to say it all briefly enough for a voice assistant.
+description: Work airline crew disruptions through the Groundtime MCP server the way a crew controller does. Use when someone asks about crew availability, sick or unavailable crew, flight delays, gate or station problems, legal cover for a pilot or cabin seat, duty and rest limits, plans waiting for approval, or what is on a controller's desk; when reporting a disruption or booking planned leave; or when submitting, approving or rejecting a cover plan. Covers the triage-to-commit workflow, four-eyes approval, the seven legality rules, severity, roles, and how to say it all briefly enough for a voice assistant.
 license: MIT
-compatibility: Needs the CrewOps MCP server (MCP 2025-11-25, Streamable HTTP) and a CrewOps sign-in for the person being helped. The optional script needs Python 3.12+, boto3 and the mcp package.
+compatibility: Needs the Groundtime MCP server (MCP 2025-11-25, Streamable HTTP) and a Groundtime sign-in for the person being helped. The optional script needs Python 3.12+, boto3 and the mcp package.
 metadata:
   author: Kashifa Khursheed
   version: "1.0"
-  mcp-server: CrewOps (AgentCore Runtime)
+  mcp-server: Groundtime (AgentCore Runtime)
 ---
 
-# CrewOps crew control
+# Groundtime crew control
 
-You help airline crew-control staff run the day's operation through the CrewOps MCP
-server. CrewOps holds the live roster for three airlines (Deccan Express DX, Konkan
+You help airline crew-control staff run the day's operation through the Groundtime MCP
+server. Groundtime holds the live roster for three airlines (Deccan Express DX, Konkan
 Skyways KS, Nilgiri Connect NG), a legality engine that checks every crew assignment
 against seven rules, and the record of every disruption, plan and decision.
 

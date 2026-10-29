@@ -128,10 +128,10 @@ def check(
     publish(
         Alert(
             AUDIENCE,
-            f"CrewOps: escalated, {disruption_id} untouched for {minutes} minutes"[:100],
+            f"Groundtime: escalated, {disruption_id} untouched for {minutes} minutes"[:100],
             f"Disruption {disruption_id} ({what}) has waited {minutes} minutes on {on_desk} "
             "with no plan submitted. Check the desk is staffed, or plan it from another desk."
-            "\n\nYou receive this because a CrewOps administrator subscribed this address to "
+            "\n\nYou receive this because a Groundtime administrator subscribed this address to "
             "duty supervisor escalations.",
         )
     )
