@@ -106,7 +106,7 @@ def build_server(
 
     @mcp.tool(annotations=READ)
     async def stations(ctx: Context) -> list:
-        """The airports the network flies between: code, city and terminal."""
+        """The airports the network flies between: code, city and airport name."""
         return await run(ctx, lambda c: api.stations(c))
 
     @mcp.tool(annotations=READ)
@@ -133,14 +133,15 @@ def build_server(
         """Traveller: confirm a trip (`flight_ids` from `find_flights`) and, with it, up to
         five things you love (each {"id", "name", "type"} from `taste_options` or
         `taste_search`) and dietary needs (vegetarian, vegan, jain, halal, gluten_free).
-        Both are saved only now, together. Replaces any earlier booking."""
+        Both are saved only now, together. Replaces any earlier booking. `position` is
+        optional: a trip starts as not at the airport yet, and `set_position` changes it."""
         taste = {"loves": loves or [], "dietary": dietary or []}
         return await run(ctx, lambda c: api.book_trip(c, flight_ids, taste, position))
 
     @mcp.tool(annotations=READ)
     async def my_trip(ctx: Context) -> dict:
-        """Traveller: your booking, the latest on each flight, your wait in plain words, and
-        your saved taste. No Qloo call."""
+        """Traveller: your booking, the latest on each flight, your wait in plain words, your
+        saved taste and the customer care number. No Qloo call."""
         return await run(ctx, lambda c: api.my_trip(c))
 
     @mcp.tool(annotations=WRITE)
@@ -206,7 +207,8 @@ def build_server(
     @mcp.tool(annotations=READ)
     async def flight_board(ctx: Context, date: str = "") -> list:
         """Customer care: every departure on `date` (YYYY-MM-DD, today if empty) with its
-        delay and how many Groundtime travellers are on it."""
+        delay (who recorded it and when, how many times it has been marked late, every change)
+        and how many Groundtime travellers are on it."""
         return await run(ctx, lambda c: api.flight_board(c, date))
 
     @mcp.tool(annotations=WRITE)
@@ -214,7 +216,8 @@ def build_server(
         flight_id: str, delay_minutes: int, ctx: Context, reason: str = ""
     ) -> dict:
         """Customer care: record a delay as operations confirm it (e.g. KS434-2026-10-30,
-        240), replacing any earlier one; 0 clears it. Every plan on the flight changes."""
+        240), replacing any earlier one; 0 clears it. A flight can be marked late at most 3
+        times; clearing is always allowed. Every plan on the flight changes."""
         return await run(ctx, lambda c: api.record_delay(c, flight_id, delay_minutes, reason))
 
     @mcp.tool(annotations=READ)

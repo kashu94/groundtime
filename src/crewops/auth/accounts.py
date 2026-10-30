@@ -5,8 +5,8 @@ the team command (``python -m crewops.auth.provision --apply --reset-passwords``
 whoever holds the AWS account.
 
 The new password is generated here, never typed by the admin, and set as permanent, so it
-works at once; the admin passes it on to the person by hand. Each reset is an audit event in
-the admin's activity log.
+works at once; the admin passes it on to the person by hand. Each reset is logged on the
+server with who did it.
 """
 
 from __future__ import annotations

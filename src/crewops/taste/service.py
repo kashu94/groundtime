@@ -15,7 +15,7 @@ import time
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from crewops.domain.models import Flight
@@ -36,8 +36,12 @@ from crewops.taste.travellers import (
     trip,
 )
 
-DELAY_CACHE_SECONDS = 30.0
+DELAY_CACHE_SECONDS = 5.0
 MAX_DELAY_MINUTES = 12 * 60
+MAX_DELAY_TIMES = 3
+"""How many times customer care may mark one flight late. Clearing a delay is always allowed."""
+CARE_DESK = {"name": "Groundtime customer care", "phone": "1800 000 4763", "hours": "24 hours"}
+"""Shown to travellers on their trip. A placeholder number for the demo."""
 SEARCH_TYPES = {k for k in LOVE_TYPES if k != "urn:tag"}
 SHORTLIST: dict[str, tuple[str, ...]] = {
     "urn:entity:artist": ("A.R. Rahman", "Arijit Singh", "Shreya Ghoshal", "Coldplay"),
@@ -95,20 +99,30 @@ class Groundtime:
         self.clock = clock
         self.travellers = dict(travellers) if travellers is not None else load_travellers()
         self._delays = delays
-        self._delay_cache: tuple[float, dict[str, int]] | None = None
+        self._delay_cache: tuple[float, dict[str, dict[str, Any]]] | None = None
         self._shortlist: list[dict[str, Any]] | None = None
         self._lock = threading.Lock()
 
     # -- Delays ----------------------------------------------------------------
 
     def delays(self) -> dict[str, int]:
-        """Flight id -> minutes late."""
+        """Flight id -> minutes late, for flights late now."""
         if self._delays is not None:
             return dict(self._delays())
+        return {
+            f: int(d["delay_minutes"])
+            for f, d in self._delay_records().items()
+            if int(d.get("delay_minutes") or 0) > 0
+        }
+
+    def _delay_records(self) -> dict[str, dict[str, Any]]:
+        """Flight id -> what customer care recorded on it (cleared ones too), cached briefly."""
+        if self._delays is not None:
+            return {}
         with self._lock:
             if self._delay_cache and time.monotonic() - self._delay_cache[0] < DELAY_CACHE_SECONDS:
                 return self._delay_cache[1]
-        found = {f: int(d["delay_minutes"]) for f, d in trip_store.all_delays(self.table).items()}
+        found = trip_store.all_delays(self.table)
         with self._lock:
             self._delay_cache = (time.monotonic(), found)
         return found
@@ -124,17 +138,39 @@ class Groundtime:
         reason = (reason or "").strip()
         if len(reason) > 200:
             raise GroundtimeError("INVALID", "keep the reason under 200 characters")
-        if flight.dep_utc + timedelta(minutes=minutes) <= self.clock():
-            raise GroundtimeError("INVALID", f"{flight_id} has already left")
-        if minutes == 0:
-            trip_store.clear_delay(self.table, flight_id)
-            out: dict[str, Any] = {"flight_id": flight_id, "delay_minutes": 0, "cleared": True}
-        else:
-            out = trip_store.record_delay(
-                self.table, flight_id, minutes, reason or "Not given", by, self.clock()
+        now = self.clock()
+        current = trip_store.delay_of(self.table, flight_id) or {}
+        late_now = int(current.get("delay_minutes") or 0)
+        if flight.dep_utc + timedelta(minutes=late_now) <= now:
+            raise GroundtimeError("INVALID", f"{flight.flight_no} has already left")
+        if minutes and flight.dep_utc + timedelta(minutes=minutes) <= now:
+            raise GroundtimeError(
+                "INVALID", f"{flight.flight_no} would have left by then: give a longer delay"
             )
+        if minutes == 0 and late_now == 0:
+            raise GroundtimeError("INVALID", f"{flight.flight_no} isn't delayed")
+        try:
+            out = trip_store.record_delay(
+                self.table,
+                flight_id,
+                minutes,
+                reason or ("Not given" if minutes else "Back on time"),
+                by,
+                now,
+                max_times=MAX_DELAY_TIMES,
+            )
+        except trip_store.TooManyDelays:
+            raise GroundtimeError(
+                "LIMIT",
+                f"{flight.flight_no} has been marked late {MAX_DELAY_TIMES} times already, "
+                "the most allowed",
+            ) from None
         self._forget_delays()
-        return out | {"waiting": self._waiting_on(flight_id)}
+        return (
+            {"flight_id": flight_id, "delay_minutes": minutes}
+            | _delay_view(out)
+            | {"waiting": self._waiting_on(flight_id)}
+        )
 
     # -- Who and when ----------------------------------------------------------
 
@@ -328,7 +364,7 @@ class Groundtime:
         """Their booking with the latest on every leg, and the wait. No Qloo call."""
         booked = self.booked(traveller_id)
         if booked is None:
-            return {"booked": False}
+            return {"booked": False, "care": CARE_DESK}
         delays = self.delays()
         legs = [
             {
@@ -352,7 +388,10 @@ class Groundtime:
             "position": booked.position.value,
             "legs": legs,
             "wait": wait.to_dict() if wait else None,
+            # where they wait, so their own device can tell whether they are there yet
+            "airport_point": ({"lat": wait.airport.lat, "lon": wait.airport.lon} if wait else None),
             "taste": _without_owner(self.taste(traveller_id).to_dict()),
+            "care": CARE_DESK,
         }
 
     def my_plan(self, traveller_id: str) -> dict[str, Any]:
@@ -380,10 +419,8 @@ class Groundtime:
         except ValueError:
             raise GroundtimeError("INVALID", "date must be YYYY-MM-DD") from None
         delays = self.delays()
-        counts: dict[str, int] = {}
-        for b in self._bookings():
-            for f in b.legs:
-                counts[f.flight_id] = counts.get(f.flight_id, 0) + 1
+        records = self._delay_records()
+        counts = self._counts()
         rows = []
         for f in self.flights().values():
             if f.dep_utc.astimezone(IST).date() != on:
@@ -403,23 +440,37 @@ class Groundtime:
                     "booked": f.booked,
                     "with_app": counts.get(f.flight_id, 0),
                 }
+                | _delay_view(records.get(f.flight_id))
             )
         return sorted(rows, key=lambda r: r["departs_local"])
+
+    def _counts(self) -> dict[str, int]:
+        """Flight id -> Groundtime travellers booked on it."""
+        counts: dict[str, int] = {}
+        for b in self._bookings():
+            for f in b.legs:
+                counts[f.flight_id] = counts.get(f.flight_id, 0) + 1
+        return counts
 
     def flight_care(self, flight_id: str) -> dict[str, Any]:
         """Every Groundtime traveller waiting for ``flight_id``, with their plan as customer
         care sees it: what is planned and that it suits them, not their dietary needs."""
         flight = self._flight(flight_id)
-        rows = []
-        for booked in self._bookings():
-            try:
-                wait = self.wait(booked.traveller_id)
-            except GroundtimeError:
-                continue
-            if wait.flight.flight_id != flight_id:
-                continue
+        now, delays = self.clock(), self.delays()
+        waiting = [
+            (booked, wait)
+            for booked in self._bookings()
+            if (wait := ground_wait(booked.legs, booked.position, now, delays)) is not None
+            and wait.flight.flight_id == flight_id
+        ]
+
+        def row(pair: tuple[Booked, GroundWait]) -> dict[str, Any]:
+            booked, wait = pair
             plan = plan_groundtime(wait, self.taste(booked.traveller_id), self.qloo)
-            rows.append({"name": booked.name} | plan.to_dict(for_traveller=False))
+            return {"name": booked.name} | plan.to_dict(for_traveller=False)
+
+        with ThreadPoolExecutor(max_workers=max(1, min(8, len(waiting)))) as pool:
+            rows = list(pool.map(row, waiting))
         modes = {m: sum(r["wait"]["mode"] == m for r in rows) for m in ("city", "terminal")}
         return {
             "flight_id": flight_id,
@@ -440,11 +491,8 @@ class Groundtime:
         """Delayed flights still to leave, earliest first."""
         now = self.clock()
         flights = self.flights()
-        records = trip_store.all_delays(self.table) if self._delays is None else {}
-        counts: dict[str, int] = {}
-        for b in self._bookings():
-            for f in b.legs:
-                counts[f.flight_id] = counts.get(f.flight_id, 0) + 1
+        records = self._delay_records()
+        counts = self._counts()
         out = []
         for flight_id, minutes in self.delays().items():
             flight = flights.get(flight_id)
@@ -453,7 +501,6 @@ class Groundtime:
             expected = flight.dep_utc + timedelta(minutes=minutes)
             if expected <= now:
                 continue
-            record = records.get(flight_id, {})
             out.append(
                 {
                     "flight_id": flight_id,
@@ -464,13 +511,45 @@ class Groundtime:
                     "departs_local": _local(flight.dep_utc),
                     "expected_departure_local": _local(expected),
                     "delay_minutes": minutes,
-                    "reason": record.get("reason"),
-                    "recorded_by": record.get("recorded_by"),
                     "booked": flight.booked,
                     "with_app": counts.get(flight_id, 0),
                 }
+                | _delay_view(records.get(flight_id))
             )
         return sorted(out, key=lambda r: r["scheduled_utc"])
+
+
+def _from_iso(text: str) -> datetime:
+    return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+
+
+def _delay_view(record: Mapping[str, Any] | None) -> dict[str, Any]:
+    """What customer care sees of a flight's delay record: the latest change, who made it
+    and when (local time), how many times it has been marked late, and every change."""
+    record = record or {}
+    times = int(record.get("times") or 0)
+    history = [
+        {
+            "delay_minutes": int(h.get("minutes") or 0),
+            "reason": h.get("reason"),
+            "by": h.get("by"),
+            "at_local": _local(_from_iso(h["at"])) if h.get("at") else None,
+        }
+        for h in record.get("history") or ()
+    ]
+    return {
+        "reason": record.get("reason"),
+        "recorded_by": record.get("recorded_by"),
+        "recorded_local": (
+            _local(_from_iso(record["recorded_utc"])) if record.get("recorded_utc") else None
+        ),
+        "first_delayed_local": next(
+            (h["at_local"] for h in history if h["delay_minutes"] > 0), None
+        ),
+        "times_delayed": times,
+        "delays_left": max(0, MAX_DELAY_TIMES - times),
+        "history": history,
+    }
 
 
 def _without_owner(profile: dict[str, Any]) -> dict[str, Any]:

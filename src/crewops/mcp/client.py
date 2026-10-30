@@ -63,7 +63,10 @@ async def call(url: str, token: str, tool: str | None, arguments: dict[str, Any]
         if result.isError:
             return {"error": " ".join(getattr(c, "text", "") for c in result.content)}
         if result.structuredContent is not None:
-            return result.structuredContent
+            out = result.structuredContent
+            if tool in LIST_TOOLS and set(out) == {"result"}:
+                return out["result"]  # a list comes back wrapped
+            return out
         texts = [getattr(c, "text", str(c)) for c in result.content]
         return _parsed(texts, as_list=tool in LIST_TOOLS)
 

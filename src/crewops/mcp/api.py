@@ -23,7 +23,7 @@ from crewops.network import Network
 from crewops.store import taste as taste_store
 from crewops.store.users import get_profile, list_profiles
 from crewops.taste.concierge import Concierge
-from crewops.taste.layover import layover_brief, night_stops
+from crewops.taste.layover import LayoverError, layover_brief, night_stops
 from crewops.taste.profile import ProfileError, TasteProfile
 from crewops.taste.qloo import QlooClient, QlooError
 from crewops.taste.service import Groundtime, GroundtimeError
@@ -109,6 +109,8 @@ class GroundtimeApi:
             raise ApiError("INVALID", str(exc)) from None
         except QlooError as exc:
             raise ApiError(exc.code, exc.message) from None
+        except LayoverError as exc:
+            raise ApiError("NOT_FOUND", str(exc)) from None
 
     @staticmethod
     def _need(caller: Caller, role: Role, what: str) -> None:

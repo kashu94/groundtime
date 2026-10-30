@@ -1,11 +1,12 @@
 """Bookings and delays.
 
     BOOKING / TR-id      flight_ids, position, username, name, booked_utc
-    DELAY / flight-id    delay_minutes, reason, recorded_by, recorded_utc
+    DELAY / flight-id    delay_minutes, reason, recorded_by, recorded_utc, times, history
 
 A traveller has one booking at a time: booking again replaces it. A delay is recorded by
-customer care as operations confirm it, and replaced or cleared the same way; the latest
-word on a flight is the only one kept.
+customer care as operations confirm it, and revised or cleared the same way. The latest word
+on a flight is what plans use; ``history`` keeps every change with who made it and when, and
+``times`` counts the delays recorded, so a flight can be marked late only so many times.
 """
 
 from __future__ import annotations
@@ -97,27 +98,81 @@ def delete_booking(table: Any, traveller_id: str) -> None:
 # -- Delays ---------------------------------------------------------------------
 
 
+class TooManyDelays(Exception):
+    """The flight has already been marked late as many times as allowed."""
+
+
 def record_delay(
-    table: Any, flight_id: str, minutes: int, reason: str, by: str, at: datetime
+    table: Any,
+    flight_id: str,
+    minutes: int,
+    reason: str,
+    by: str,
+    at: datetime,
+    *,
+    max_times: int,
 ) -> dict[str, Any]:
-    item = {
-        schema.PK: DELAYS_PK,
-        schema.SK: flight_id,
-        "entity": "delay",
-        "flight_id": flight_id,
-        "delay_minutes": minutes,
-        "reason": reason,
-        "recorded_by": by,
-        "recorded_utc": _iso(at),
+    """Set the flight's delay, or clear it with 0. A delay (not a clear) counts towards
+    ``max_times``; the check and the write are one conditional update, so two people saving
+    at once can't get past it."""
+    from botocore.exceptions import ClientError
+
+    change = {"minutes": minutes, "reason": reason, "by": by, "at": _iso(at)}
+    names = {
+        "#m": "delay_minutes",
+        "#r": "reason",
+        "#b": "recorded_by",
+        "#a": "recorded_utc",
+        "#h": "history",
+        "#t": "times",
+        "#f": "flight_id",
+        "#e": "entity",
     }
-    table.put_item(Item=item)
-    return _strip(item)
+    values: dict[str, Any] = {
+        ":m": minutes,
+        ":r": reason,
+        ":b": by,
+        ":a": _iso(at),
+        ":h": [change],
+        ":none": [],
+        ":f": flight_id,
+        ":e": "delay",
+        ":zero": 0,
+    }
+    update = (
+        "SET #m = :m, #r = :r, #b = :b, #a = :a, #f = :f, #e = :e, "
+        "#h = list_append(if_not_exists(#h, :none), :h)"
+    )
+    kwargs: dict[str, Any] = {}
+    if minutes > 0:
+        update += ", #t = if_not_exists(#t, :zero) + :one"
+        values |= {":one": 1, ":max": max_times}
+        kwargs["ConditionExpression"] = "attribute_not_exists(#t) OR #t < :max"
+    else:
+        update += ", #t = if_not_exists(#t, :zero)"
+    try:
+        out = table.update_item(
+            Key={schema.PK: DELAYS_PK, schema.SK: flight_id},
+            UpdateExpression=update,
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+            ReturnValues="ALL_NEW",
+            **kwargs,
+        )
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise TooManyDelays(flight_id) from None
+        raise
+    return _strip(from_dynamo(out["Attributes"]))
 
 
-def clear_delay(table: Any, flight_id: str) -> None:
-    table.delete_item(Key={schema.PK: DELAYS_PK, schema.SK: flight_id})
+def delay_of(table: Any, flight_id: str) -> dict[str, Any] | None:
+    item = table.get_item(
+        Key={schema.PK: DELAYS_PK, schema.SK: flight_id}, ConsistentRead=True
+    ).get("Item")
+    return None if item is None else _strip(from_dynamo(item))
 
 
 def all_delays(table: Any) -> dict[str, dict[str, Any]]:
-    """Flight id -> the delay recorded on it."""
+    """Flight id -> what was recorded on it, cleared delays (0 minutes) included."""
     return {i["flight_id"]: _strip(i) for i in _all(table, DELAYS_PK)}

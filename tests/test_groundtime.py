@@ -233,8 +233,42 @@ def test_customer_care_records_a_delay_and_sees_every_traveller_on_the_flight(wo
         "Not at the airport yet: an outing near it on the way in, at the terminal by 18:20.",
     ]
     assert all("dietary_needed" not in r for r in care["travellers"])
+    shown = json.dumps(care).lower()  # no dietary need named anywhere care can see
+    assert "dietary_option" not in shown and "offers " not in shown
+    reasons = json.dumps(
+        [[s["why"] for s in r["stops"]] + [w["why"] for w in r["watch"]] + [r["note"]]
+         for r in care["travellers"]]
+    )  # fmt: skip
+    assert "you love" not in reasons and "your " not in reasons
     gt.record_delay(KS434, 0, "", "neha.joshi")
-    assert gt.delays() == {} and trip_store.all_delays(ops_table) == {}
+    assert gt.delays() == {} and gt.delayed_flights() == []
+    assert trip_store.all_delays(ops_table)[KS434]["delay_minutes"] == 0  # kept, with history
+
+
+def test_a_flight_can_be_marked_late_three_times_and_every_change_is_shown(world, ops_table):
+    from crewops.taste.service import GroundtimeError
+
+    gt = service(world, FakeQloo(), ops_table)
+    gt.delays()  # cached before the change: what care sees must still be the latest
+    gt.record_delay(KS434, 60, "Late inbound aircraft", "neha.joshi")
+    gt.record_delay(KS434, 120, "", "neha.joshi")
+    [delayed] = gt.delayed_flights()
+    assert delayed["reason"] == "Not given" and delayed["recorded_by"] == "neha.joshi"
+    assert delayed["times_delayed"] == 2 and delayed["delays_left"] == 1
+    assert delayed["first_delayed_local"] == delayed["recorded_local"] == "2026-10-13 13:00"
+    assert [h["delay_minutes"] for h in delayed["history"]] == [60, 120]
+    gt.record_delay(KS434, 0, "", "neha.joshi")  # clearing doesn't count
+    gt.record_delay(KS434, 180, "Weather", "neha.joshi")
+    with pytest.raises(GroundtimeError) as refused:
+        gt.record_delay(KS434, 240, "", "neha.joshi")
+    assert refused.value.code == "LIMIT"
+    assert gt.delays() == {KS434: 180}
+    board = {r["flight_id"]: r for r in gt.flight_board()}
+    assert board[KS434]["times_delayed"] == 3 and board[KS434]["delays_left"] == 0
+    assert [h["delay_minutes"] for h in board[KS434]["history"]] == [60, 120, 0, 180]
+    gt.record_delay(KS434, 0, "", "neha.joshi")  # back on time is always allowed
+    with pytest.raises(GroundtimeError):
+        gt.record_delay(KS434, 0, "", "neha.joshi")  # nothing to clear
 
 
 def test_a_delay_is_refused_for_a_flight_that_has_left(world, ops_table):
@@ -251,7 +285,7 @@ def test_booking_saves_the_trip_and_the_taste_together_and_only_when_valid(world
     from crewops.taste.profile import ProfileError
 
     gt = service(world, FakeQloo(), ops_table)
-    assert gt.my_trip("TR-1004") == {"booked": False}
+    assert gt.my_trip("TR-1004")["booked"] is False
     with pytest.raises(ProfileError):
         gt.book("TR-1004", "tr1004.das", "Rahul Das", [KS434], "away", {"dietary": ["paleo"]})
     assert trip_store.booking_of(ops_table, "TR-1004") is None  # nothing kept from a failure
@@ -263,6 +297,8 @@ def test_booking_saves_the_trip_and_the_taste_together_and_only_when_valid(world
     mine = gt.my_trip("TR-1004")
     assert mine["booked"] and mine["legs"][0]["flight_no"] == "KS434"
     assert mine["wait"]["headline"].startswith("No delay on KS434")
+    assert mine["airport_point"] == {"lat": 15.3808, "lon": 73.8314}  # Goa, where it leaves
+    assert mine["care"]["phone"]
     gt.set_position("TR-1004", "airport")
     assert gt.wait("TR-1004").position is Position.AIRPORT
 
@@ -421,3 +457,14 @@ def test_crew_see_their_own_flights_with_delays(world, delayed, ops_table):
     mine = api.my_flights(Caller("c", frozenset({Role.CREW}), crew_id=crew_id))
     legs = [leg for d in mine["days"] for leg in d["legs"]]
     assert any(leg["flight_id"] == KS434 and leg["delay_minutes"] == 240 for leg in legs)
+
+
+def test_saying_where_you_are_counts_even_without_the_model(delayed):
+    from crewops.taste.concierge import said_position
+
+    assert said_position("I'm at the airport already, what now?") is Position.AIRPORT
+    assert said_position("I haven't left home yet") is Position.AWAY
+    assert said_position("What can I eat?") is None
+    answer = Concierge(delayed, None, None).ask("TR-1001", "I'm at the airport now")
+    assert answer.tools == ["set_position", "plan_groundtime"]
+    assert delayed.wait("TR-1001").position is Position.AIRPORT

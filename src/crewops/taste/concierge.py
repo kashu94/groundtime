@@ -24,6 +24,7 @@ from typing import Any
 from crewops.taste.groundtime import WATCH_MARGIN_MINUTES, GroundPlan
 from crewops.taste.qloo import QlooError
 from crewops.taste.service import SEARCH_TYPES, Groundtime, GroundtimeError
+from crewops.taste.travellers import Position
 
 MAX_ROUNDS = 5
 MAX_RESULT_CHARS = 8000
@@ -100,6 +101,27 @@ TOOLS: list[dict[str, Any]] = [
 KINDS = {"film": "urn:entity:movie", "series": "urn:entity:tv_show"}
 CAPITALISED = re.compile(r"(?:[A-Z][\w'&-]*\s+){1,6}[A-Z][\w'&-]*")
 """Runs of two or more capitalised words: how place names and titles look in an answer."""
+
+
+_AWAY = re.compile(
+    r"\b(not (yet )?at the airport|haven'?t left|have not left|still (at home|at the hotel|in town)"
+    r"|on my way|leaving (home|the hotel))\b",
+    re.IGNORECASE,
+)
+_THERE = re.compile(
+    r"\b(i'?m at the airport|i am at the airport|(already|now) at the airport|reached the airport"
+    r"|in the terminal|at the terminal|through security)\b",
+    re.IGNORECASE,
+)
+
+
+def said_position(question: str) -> Position | None:
+    """Where a question says the traveller is, when it says so plainly; else None."""
+    if _AWAY.search(question):
+        return Position.AWAY
+    if _THERE.search(question):
+        return Position.AIRPORT
+    return None
 
 
 @dataclass(slots=True)
@@ -242,17 +264,27 @@ class Concierge:
         if not question:
             raise GroundtimeError("INVALID", "ask a question")
         if self.client is None or not self.model_id:
-            return self._written_out(traveller, "no model configured")
+            return self._written_out(traveller, question, "no model configured")
         try:
             return self._agent(traveller, question)
         except GroundtimeError:
             raise
         except Exception as exc:  # the model service; the checked plan still answers
-            return self._written_out(traveller, f"model unavailable: {type(exc).__name__}")
+            return self._written_out(
+                traveller, question, f"model unavailable: {type(exc).__name__}"
+            )
 
-    def _written_out(self, traveller: str, why: str) -> ConciergeAnswer:
+    def _written_out(self, traveller: str, question: str, why: str) -> ConciergeAnswer:
+        """The checked plan, without the model. Where the traveller says they are still
+        counts: "I'm at the airport" moves them before the plan is made."""
+        tools = ["plan_groundtime"]
+        said = said_position(question)
+        booked = self.groundtime.booked(traveller)
+        if said is not None and booked is not None and booked.position is not said:
+            self.groundtime.set_position(traveller, said.value)
+            tools.insert(0, "set_position")
         plan = self.groundtime.plan(traveller)
-        return ConciergeAnswer(write_out(plan), "plan", ["plan_groundtime"], 0, [why])
+        return ConciergeAnswer(write_out(plan), "plan", tools, 0, [why])
 
     def _agent(self, traveller: str, question: str) -> ConciergeAnswer:
         deadline = self.clock() + self.budget_seconds
@@ -280,7 +312,9 @@ class Concierge:
                     break
                 unknown = grounded(text, results, question)
                 if unknown:
-                    answer = self._written_out(traveller, "model named " + ", ".join(unknown[:3]))
+                    answer = self._written_out(
+                        traveller, question, "model named " + ", ".join(unknown[:3])
+                    )
                     answer.tools = used + answer.tools
                     answer.model_calls = calls
                     return answer
@@ -308,7 +342,7 @@ class Concierge:
                     }
                 )
             messages.append({"role": "user", "content": replies})
-        answer = self._written_out(traveller, "the agent ran out of time")
+        answer = self._written_out(traveller, question, "the agent ran out of time")
         answer.tools = used + answer.tools
         answer.model_calls = calls
         return answer

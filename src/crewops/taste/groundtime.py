@@ -197,6 +197,12 @@ class GroundWait:
                 f"{late}, so {gate}." if late else f"{no} is on time: {gate}."
             )
             return f"{first} Until then, here's what to do inside the terminal."
+        if self.free_from > self.at_terminal_by:
+            return (
+                f"You haven't left for the airport yet and {no} leaves at "
+                f"{self.expected_dep.astimezone(self.airport.tz):%H:%M}: head to the airport now "
+                f"and {gate}."
+            )
         if not late:
             return f"No delay on {no}: be at the terminal by {self.at_terminal_by:%H:%M}."
         if self.mode == "city":
@@ -206,9 +212,9 @@ class GroundWait:
                 f"way in, before you need to be at the terminal by {self.at_terminal_by:%H:%M}."
             )
         return (
-            f"You haven't left for the airport yet. {late}: be at the terminal by "
-            f"{self.at_terminal_by:%H:%M}. There isn't time for an outing first, so here's "
-            "what to do once you're there."
+            f"You haven't left for the airport yet. {late}, but there isn't time for an outing "
+            f"first: come at {self.free_from:%H:%M} as you would have, and here's what to do "
+            f"inside. Be at the terminal by {self.at_terminal_by:%H:%M} at the latest."
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -378,8 +384,11 @@ class GroundPlan:
             "back_at_terminal_local": _local(self.back_at_terminal),
             "considered": self.considered,
             "rejected": dict(self.rejected),
-            "dietary_needs_met": all(
-                self.dietary_needed <= s.venue.dietary for s in self.stops if s.kind != "sight"
+            # None when there is nothing to check: no needs, or no food stop
+            "dietary_needs_met": (
+                all(self.dietary_needed <= s.venue.dietary for s in food)
+                if (food := [s for s in self.stops if s.kind != "sight"]) and self.dietary_needed
+                else None
             ),
             "taste_shared": self.signals > 0,
             "unavailable": list(self.unavailable),
@@ -388,7 +397,42 @@ class GroundPlan:
         }
         if for_traveller:
             out["dietary_needed"] = sorted(self.dietary_needed)
+            return out
+        # Customer care: no dietary need named anywhere, and the words about them, not to them.
+        for stop in out["stops"]:
+            stop["why"] = [
+                "Meets every dietary need" if _names_diet(w) else _about_them(w)
+                for w in stop["why"]
+            ]
+        for w in out["watch"]:
+            w["why"] = [_about_them(r) for r in w["why"]]
+        requests = out["source"].get("requests") or {}
+        out["source"] = out["source"] | {
+            "requests": {k: v for k, v in requests.items() if k != "dietary"}
+        }
+        if self.note:
+            out["note"] = self.note.replace(SHARE_HINT, SHARE_HINT_STAFF).strip()
         return out
+
+
+SHARE_HINT = "Share a few things you love to get picks made for you."
+SHARE_HINT_STAFF = "They haven't shared what they love, so these are popular picks."
+
+
+def _names_diet(reason: str) -> bool:
+    return reason.startswith("Offers ") and reason.endswith(" food")
+
+
+def _about_them(text: str) -> str:
+    """A reason written to the traveller, as customer care should read it."""
+    for mine, theirs in (
+        ("what you love", "what they love"),
+        ("your side of security", "their side of security"),
+        ("your gate", "their gate"),
+        ("your flight", "their flight"),
+    ):
+        text = text.replace(mine, theirs)
+    return text
 
 
 def _names(v: Venue) -> set[str]:
@@ -445,8 +489,6 @@ def _venue_why(v: Venue, kind: str, at: datetime, needed: frozenset[str], signal
         reasons.append("Opening hours not listed: check before you go")
     if kind != "sight" and needed:
         reasons.append("Offers " + ", ".join(_food(d) for d in sorted(needed)) + " food")
-    if signals and v.affinity is not None:
-        reasons.append(f"Qloo taste match {v.affinity:.2f} with what you love")
     shown = [g for g in v.genres if g not in ("Place", "Restaurant", "Tourist attraction")]
     if shown:
         reasons.append(", ".join(shown[:3]))
@@ -480,8 +522,6 @@ def _watch(answers: Mapping[str, dict[str, Any]], minutes: int, signals: int) ->
             else:
                 episodes = (minutes - WATCH_MARGIN_MINUTES) // length
                 why.append(f"{length}-min episodes: {episodes} fit before your gate")
-            if signals and isinstance(affinity, int | float):
-                why.append(f"Qloo taste match {affinity:.2f} with what you love")
             image = (props.get("image") or {}).get("url")
             out.append(
                 Watch(
@@ -674,8 +714,7 @@ def plan_groundtime(wait: GroundWait, taste: TasteProfile, qloo: QlooClient) -> 
     elif not city and not stops and not watch:
         note = "Nothing at the terminal matched this time. The gate opens as planned."
     if not n_signals:
-        hint = "Share a few things you love to get picks made for you."
-        note = f"{note} {hint}" if note else hint
+        note = f"{note} {SHARE_HINT}" if note else SHARE_HINT
     shown = {
         name: {k: v for k, v in params.items() if not k.startswith("signal.")}
         | ({"signals": f"{n_signals} taste ids"} if n_signals else {})

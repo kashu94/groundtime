@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from crewops.taste.profile import DIETARY, TasteProfile
-from crewops.taste.qloo import QlooClient, QlooError
+from crewops.taste.qloo import QlooClient
 from crewops.taste.stations import CrewHotel, hotel_at
 from crewops.taste.venues import DIETARY_TAG, Venue, venues_from_insights
 from crewops.taste.window import MEAL, LayoverWindow, layover_window
@@ -41,6 +41,10 @@ PICKS = 3
 MIN_REST_HOURS = 12.0
 """Minimum rest between release and the next report."""
 TIRED_RADIUS_M = 1500
+
+
+class LayoverError(Exception):
+    """The layover can't be planned: something about the stop itself, not Qloo."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,8 +205,6 @@ def _why(
         reasons.append("Offers " + ", ".join(_food(d) for d in sorted(needed)) + " food")
     if quiet and venue.noise == "quiet":
         reasons.append("Quiet, for a tired crew")
-    if signals and venue.affinity is not None:
-        reasons.append(f"Qloo taste match {venue.affinity:.2f} with the crew's picks")
     if venue.genres:
         reasons.append(", ".join(g for g in venue.genres if g not in ("Place", "Restaurant"))[:80])
     return tuple(r for r in reasons if r)
@@ -264,7 +266,7 @@ def layover_brief(
     have one; for a crew member's own brief, pass only theirs."""
     hotel = hotel_at(stop.station)
     if hotel is None:
-        raise QlooError("QLOO_REFUSED", f"no crew hotel is set up at {stop.station}")
+        raise LayoverError(f"no crew hotel is set up at {stop.station}")
     window = layover_window(
         hotel,
         stop.release_utc,
@@ -286,15 +288,22 @@ def layover_brief(
         "radius_m": radius,
         "signals": len(entities) + len(tags),
     }
+    short_rest = (
+        None
+        if window.legal_rest
+        else f"This rest is shorter than the {min_rest_hours:g}-hour minimum: tell crew "
+        "scheduling before you plan anything."
+    )
     if window.meal_at is None:
+        note = (
+            "No time for a meal out: rest comes first. Order in at the hotel and keep "
+            f"the sleep before the {window.sleep_by:%H:%M} cut-off."
+        )
         return LayoverBrief(
             picks=(),
             considered=0,
             rejected={},
-            note=(
-                "No time for a meal out: rest comes first. Order in at the hotel and keep "
-                f"the sleep before the {window.sleep_by:%H:%M} cut-off."
-            ),
+            note=f"{short_rest} {note}" if short_rest else note,
             **common,
         )
     venues, requests = _fetch(qloo, hotel, radius, entities, tags, needed)
@@ -341,17 +350,13 @@ def layover_brief(
         )
         for rank, v in kept[:PICKS]
     )
-    note = None
+    note = short_rest
     if not picks:
-        note = (
+        empty = (
             "Nothing near the crew hotel fits tonight. Order in at the hotel, or ask the "
             "station duty manager for a late kitchen."
         )
-    elif not window.legal_rest:
-        note = (
-            "This rest is shorter than the 12-hour minimum: tell crew scheduling before you "
-            "plan anything."
-        )
+        note = f"{note} {empty}" if note else empty
     return LayoverBrief(
         picks=picks,
         considered=len(venues),
