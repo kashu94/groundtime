@@ -11,6 +11,16 @@ const STOP_ICON = { sight: MapPin, meal: Utensils, terminal: DoorOpen } as const
 const STOP_KIND = { sight: "To see", meal: "To eat", terminal: "In the terminal" } as const;
 
 /** How late a flight is, at a glance; nothing for one on time. */
+/** What each Qloo request was for, as a traveller would say it. */
+const UNAVAILABLE: Record<string, string> = {
+  sights: "places to see",
+  meals: "places to eat",
+  terminal: "food in the terminal",
+  dietary: "places that suit your diet",
+  films: "films",
+  series: "series",
+};
+
 export function Late({ minutes, expected }: { minutes: number; expected: string | null | undefined }) {
   const text = lateBy(minutes, expected);
   if (!text) return null;
@@ -25,8 +35,8 @@ export function Bullets({ why }: { why: string[] }) {
   if (!why.length) return null;
   return (
     <ul className="mt-1.5 flex flex-col gap-0.5 text-xs text-muted">
-      {why.map((w) => (
-        <li key={w} className="flex gap-1.5">
+      {why.map((w, i) => (
+        <li key={i} className="flex gap-1.5">
           <span aria-hidden>·</span>
           {w}
         </li>
@@ -54,7 +64,7 @@ function StopRow({ stop }: { stop: Stop }) {
         {distance(stop.distance_m) && <span>{distance(stop.distance_m)} away</span>}
       </p>
       <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm font-semibold">
-        {stop.website ? (
+        {stop.website && /^https?:\/\//i.test(stop.website) ? (
           <a href={stop.website} target="_blank" rel="noreferrer" className="hover:underline">
             {stop.name}
           </a>
@@ -121,7 +131,7 @@ export function PlanView({ plan }: { plan: Plan }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="text-lg leading-snug">{w.headline}</p>
+      {/* the page above already says the headline */}
       {w.stay_reason && <Notice>{w.stay_reason}</Notice>}
 
       <section>
@@ -153,7 +163,7 @@ export function PlanView({ plan }: { plan: Plan }) {
             )}
           </ol>
         )}
-        {plan.dietary_needs_met && needed.length > 0 && plan.stops.length > 0 && (
+        {plan.dietary_needs_met === true && needed.length > 0 && (
           <p className="mt-4 flex items-center gap-1.5 text-xs text-ok">
             <ShieldCheck size={13} /> Every food stop serves {needed.join(", ").replace(/_/g, " ")}.
           </p>
@@ -181,8 +191,9 @@ export function PlanView({ plan }: { plan: Plan }) {
         <div className="mt-2 flex flex-col gap-2 text-muted">
           <p>
             Looked at {plan.considered} place{plan.considered === 1 ? "" : "s"}
-            {asked ? ` from ${asked} request${asked === 1 ? "" : "s"}` : ""}. Every stop kept was checked for opening
-            hours, your dietary needs and getting back in time.
+            {asked ? ` from ${asked} request${asked === 1 ? "" : "s"}` : ""}. Every stop kept was checked against its listed
+            opening hours and your dietary needs
+            {city ? ", and for getting to the terminal in time." : "."}
             {plan.taste_shared === false && " No picks saved yet, so these are popular rather than picked for you."}
           </p>
           {rejected.length > 0 && (
@@ -195,7 +206,10 @@ export function PlanView({ plan }: { plan: Plan }) {
             </ul>
           )}
           {(plan.unavailable ?? []).length > 0 && (
-            <p>Qloo couldn&apos;t answer for: {(plan.unavailable ?? []).join(", ")}. The rest of the plan stands.</p>
+            <p>
+              Qloo couldn&apos;t answer for {(plan.unavailable ?? []).map((u) => UNAVAILABLE[u] ?? u).join(", ")} this
+              time. The rest of the plan stands.
+            </p>
           )}
           <p className="text-xs">Picked by {plan.source?.provider ?? "Qloo Insights API"}.</p>
         </div>

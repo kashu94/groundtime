@@ -91,120 +91,59 @@ select {
   cursor: pointer;
 }
 
-/* Sign-in backdrop. Keep the motion slow so it doesn't pull focus from the form. */
-@keyframes aurora-a {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(8%, 6%, 0) scale(1.12);
-  }
-}
-@keyframes aurora-b {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1.05);
-  }
-  50% {
-    transform: translate3d(-10%, 8%, 0) scale(0.95);
-  }
-}
-@keyframes aurora-c {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0.7;
-  }
-  50% {
-    transform: translate3d(6%, -6%, 0);
-    opacity: 1;
-  }
-}
-@keyframes drift {
-  0%,
-  100% {
-    transform: scale(1.02) translate3d(0, 0, 0);
-  }
-  50% {
-    transform: scale(1.06) translate3d(0, -1%, 0);
-  }
-}
-@keyframes bokeh {
+/* Sign-in backdrop: a departure lounge at dusk. Slow, so it doesn't pull focus from the form. */
+@keyframes takeoff {
   0% {
-    transform: translate3d(0, 12px, 0) scale(0.92);
+    transform: translate3d(-120px, 40px, 0) rotate(-8deg);
     opacity: 0;
   }
-  20%,
-  80% {
+  8% {
     opacity: 1;
   }
+  60% {
+    opacity: 1;
+  }
+  70%,
   100% {
-    transform: translate3d(-28px, -46px, 0) scale(1.08);
+    transform: translate3d(520px, -150px, 0) rotate(-14deg);
     opacity: 0;
   }
 }
-@keyframes lead-in {
+@keyframes delayed {
   0%,
   100% {
-    opacity: 0.18;
-  }
-  6% {
     opacity: 1;
-  }
-  18% {
-    opacity: 0.18;
-  }
-}
-@keyframes city {
-  0%,
-  100% {
-    opacity: 0.55;
   }
   50% {
-    opacity: 0.95;
+    opacity: 0.35;
   }
 }
-.aurora-a {
-  animation: aurora-a 28s ease-in-out infinite;
+@keyframes glow {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
 }
-.aurora-b {
-  animation: aurora-b 36s ease-in-out infinite;
+.takeoff {
+  animation: takeoff 26s ease-in infinite;
+  transform-box: fill-box;
 }
-.aurora-c {
-  animation: aurora-c 42s ease-in-out infinite;
+.board-delayed {
+  animation: delayed 2.4s ease-in-out infinite;
 }
-.approach-drift {
-  animation: drift 30s ease-in-out infinite;
-}
-.bokeh {
-  animation: bokeh linear infinite;
-}
-.lead-in {
-  animation: lead-in 3.2s ease-out infinite;
-  opacity: 0.18;
-}
-.city-light {
-  animation: city 5s ease-in-out infinite;
-}
-.city-light:nth-of-type(3n) {
-  animation-delay: -1.7s;
-}
-.city-light:nth-of-type(3n + 1) {
-  animation-delay: -3.1s;
+.dusk-glow {
+  animation: glow 12s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .aurora,
-  .approach-drift,
-  .bokeh,
-  .lead-in,
-  .city-light {
+  .takeoff,
+  .board-delayed,
+  .dusk-glow {
     animation: none;
   }
-  .bokeh {
-    opacity: 0.7;
-  }
-  .lead-in {
-    opacity: 0.6;
+  .takeoff {
+    opacity: 0;
   }
 }

@@ -11,6 +11,9 @@ import {
   later,
   lateBy,
   match,
+  matchesFlight,
+  metresBetween,
+  positionFromFix,
   MAX_LOVES,
   planSummary,
   rejections,
@@ -190,5 +193,28 @@ describe("the tools the web app may call", () => {
       .map(([name]) => name)
       .sort();
     expect(writes).toEqual(["book_trip", "record_delay", "reset_password", "save_my_taste", "set_position"]);
+  });
+});
+
+describe("matchesFlight", () => {
+  const row = { flight_no: "KS434", from: "GOI", to: "BLR" };
+  const city = (c: string) => ({ GOI: "Goa", BLR: "Bengaluru" })[c] ?? c;
+  it("finds a flight by number, airport or city, however it is typed", () => {
+    for (const q of ["ks434", "KS 434", "434", "goi", "Goa blr", "goa → bengaluru", ""]) {
+      expect(matchesFlight(row, q, city)).toBe(true);
+    }
+    for (const q of ["ks435", "goa del", "mumbai"]) expect(matchesFlight(row, q, city)).toBe(false);
+  });
+});
+
+describe("positionFromFix", () => {
+  const goa = { lat: 15.3808, lon: 73.8314 };
+  it("says at the airport only when the reading is clearly there, away only when clearly not", () => {
+    expect(positionFromFix(goa, { lat: 15.381, lon: 73.832, accuracy: 50 })).toBe("airport");
+    expect(positionFromFix(goa, { lat: 15.4909, lon: 73.8278, accuracy: 100 })).toBe("away"); // Panaji
+    expect(positionFromFix(goa, { lat: 15.395, lon: 73.8314, accuracy: 1500 })).toBeNull(); // too rough
+  });
+  it("measures distance on the Earth", () => {
+    expect(Math.round(metresBetween(goa, { lat: 15.4808, lon: 73.8314 }) / 100)).toBe(111); // 0.1° of latitude
   });
 });

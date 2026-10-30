@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Heart, Plus, Search, Sparkles, X } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { tool } from "@/lib/client";
 import {
@@ -108,6 +108,13 @@ export function TasteFields({
     };
   }, [query, kind]);
 
+  // A new question: the last answer, and any error with it, no longer apply.
+  function ask(change: () => void) {
+    change();
+    setFound([]);
+    setError(null);
+  }
+
   const { loves, dietary } = value;
   const full = loves.length >= MAX_LOVES;
   const has = (id: string) => loves.some((l) => l.id === id);
@@ -183,7 +190,10 @@ export function TasteFields({
           <select
             aria-label="What kind"
             value={kind}
-            onChange={(e) => setKind(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              ask(() => setKind(next));
+            }}
             className="h-10 rounded-md border border-control bg-surface px-2 text-sm outline-none focus:border-accent"
           >
             {Object.keys(kinds).map((k) => (
@@ -197,7 +207,10 @@ export function TasteFields({
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                ask(() => setQuery(next));
+              }}
               maxLength={80}
               disabled={full}
               placeholder={full ? "Five picks: remove one to add another" : "Search, e.g. A. R. Rahman"}
@@ -277,22 +290,38 @@ export function TasteFields({
 }
 
 /** The saved taste, to change: loads it, and saves only when asked. */
-export function TastePicker({ crew = false, onSaved }: { crew?: boolean; onSaved?: () => void }) {
+export function TastePicker({
+  crew = false,
+  onSaved,
+  onClose,
+}: {
+  crew?: boolean;
+  onSaved?: () => void;
+  onClose?: () => void;
+}) {
   const options = useTasteOptions();
   const [value, setValue] = useState<TasteValue | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Saving over a taste that never loaded would wipe it, so there is nothing to edit until it has.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const fetchTaste = useCallback(
+    () =>
+      tool<Taste>("my_taste").then(
+        (t) => setValue({ loves: t.loves ?? [], dietary: t.dietary ?? [], windDown: t.wind_down ?? "" }),
+        (err: Error) => setLoadError(err.message),
+      ),
+    [],
+  );
   useEffect(() => {
-    tool<Taste>("my_taste").then(
-      (t) => setValue({ loves: t.loves ?? [], dietary: t.dietary ?? [], windDown: t.wind_down ?? "" }),
-      (err: Error) => {
-        setError(err.message);
-        setValue(NO_TASTE);
-      },
-    );
-  }, []);
+    fetchTaste();
+  }, [fetchTaste]);
+  function load() {
+    setLoadError(null);
+    fetchTaste();
+  }
 
   async function save() {
     if (!value) return;
@@ -317,7 +346,14 @@ export function TastePicker({ crew = false, onSaved }: { crew?: boolean; onSaved
 
   return (
     <Panel title="What you love" icon={<Heart size={14} className="text-accent" />}>
-      {!value ? (
+      {loadError ? (
+        <div className="flex flex-col items-start gap-3">
+          <Notice tone="error">{loadError}</Notice>
+          <Button type="button" tone="secondary" onClick={load}>
+            Try again
+          </Button>
+        </div>
+      ) : !value ? (
         <Spinner className="text-muted" />
       ) : (
         <div className="flex flex-col gap-4">
@@ -332,10 +368,15 @@ export function TastePicker({ crew = false, onSaved }: { crew?: boolean; onSaved
           />
           {error && <Notice tone="error">{error}</Notice>}
           {saved && <Notice tone="ok">Saved. Your next plan uses it.</Notice>}
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button type="button" tone="accent" disabled={busy} onClick={save} className={cx(busy && "cursor-wait")}>
               {busy && <Spinner />} Save
             </Button>
+            {onClose && (
+              <Button type="button" tone="ghost" disabled={busy} onClick={onClose}>
+                Done
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -349,10 +390,10 @@ export function TasteMatch({ affinity }: { affinity: number | null | undefined }
   if (pct === null) return null;
   return (
     <span
-      title={`Qloo taste match: ${pct}%`}
+      title="How well this matches what you love, by Qloo"
       className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-[#173f63]"
     >
-      <Sparkles size={10} /> Qloo taste match
+      <Sparkles size={10} /> {pct}% taste match
     </span>
   );
 }

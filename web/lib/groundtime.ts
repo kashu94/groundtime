@@ -71,7 +71,8 @@ export type Plan = {
   back_at_terminal_local: string | null;
   considered: number;
   rejected: Record<string, number>;
-  dietary_needs_met: boolean;
+  /** null when there is nothing to check: no dietary needs, or no food stop. */
+  dietary_needs_met: boolean | null;
   taste_shared?: boolean;
   unavailable?: string[];
   note?: string | null;
@@ -129,9 +130,21 @@ export type BookedLeg = {
   expected_departure_local: string;
 };
 
+export type CareDesk = { name: string; phone: string; hours: string };
+
 export type MyTrip =
-  | { booked: false }
-  | { booked: true; name: string; position: Position; legs: BookedLeg[]; wait: Wait | null; taste: Taste };
+  | { booked: false; care: CareDesk }
+  | {
+      booked: true;
+      name: string;
+      position: Position;
+      legs: BookedLeg[];
+      wait: Wait | null;
+      /** The airport they wait at, so this device can tell whether they are there yet. */
+      airport_point: { lat: number; lon: number } | null;
+      taste: Taste;
+      care: CareDesk;
+    };
 
 export type ConciergeAnswer = {
   answer: string;
@@ -142,7 +155,21 @@ export type ConciergeAnswer = {
   notes: string[];
 };
 
-export type BoardRow = {
+export type DelayChange = { delay_minutes: number; reason: string | null; by: string | null; at_local: string | null };
+
+/** What customer care recorded on a flight: the latest change and every one before it. */
+export type DelayRecord = {
+  reason: string | null;
+  recorded_by: string | null;
+  recorded_local: string | null;
+  first_delayed_local: string | null;
+  /** Times the flight has been marked late; at most MAX_DELAY_TIMES. */
+  times_delayed: number;
+  delays_left: number;
+  history: DelayChange[];
+};
+
+export type BoardRow = DelayRecord & {
   flight_id: string;
   flight_no: string;
   from: string;
@@ -155,7 +182,7 @@ export type BoardRow = {
   with_app: number;
 };
 
-export type DelayedFlight = {
+export type DelayedFlight = DelayRecord & {
   flight_id: string;
   flight_no: string;
   from: string;
@@ -163,8 +190,6 @@ export type DelayedFlight = {
   departs_local: string;
   expected_departure_local: string;
   delay_minutes: number;
-  reason: string | null;
-  recorded_by: string | null;
   booked: number;
   with_app: number;
 };
@@ -302,6 +327,12 @@ export const QUICK_DELAYS = [30, 60, 120, 240];
 /** The server's limit on a recorded delay: twelve hours. */
 export const MAX_DELAY_MINUTES = 12 * 60;
 
+/** How many times one flight may be marked late. Clearing a delay doesn't count. */
+export const MAX_DELAY_TIMES = 3;
+
+/** Within this distance of the airport counts as being there. */
+export const AT_AIRPORT_M = 3000;
+
 /** "2026-10-13 18:40" -> "18:40"; anything else (null, a bare time) as it is, or "—". */
 export function hhmm(local: string | null | undefined): string {
   if (!local) return "—";
@@ -405,4 +436,36 @@ export function planSummary(plan: Pick<Plan, "stops" | "watch">): string {
   }
   if (plan.watch.length) return plan.watch.map((w) => w.title).join(" · ");
   return "Nothing planned";
+}
+
+/** A flight board row matches a search when the flight number, either airport or a city
+ * typed matches: "ks434", "KS 434", "goi", "goa blr". Every word has to match something. */
+export function matchesFlight(
+  row: Pick<BoardRow, "flight_no" | "from" | "to">,
+  query: string,
+  cityOf: (code: string) => string = (c) => c,
+): boolean {
+  const words = query.toLowerCase().replace(/([a-z]{2})\s+(\d)/g, "$1$2").split(/[\s,→>-]+/).filter(Boolean);
+  const fields = [row.flight_no, row.from, row.to, cityOf(row.from), cityOf(row.to)].map((f) => f.toLowerCase());
+  return words.every((w) => fields.some((f) => f.includes(w)));
+}
+
+/** Straight-line distance in metres between two points on the Earth. */
+export function metresBetween(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
+}
+
+/** Where a device reading puts the traveller, or null when it is too rough to tell. */
+export function positionFromFix(
+  airport: { lat: number; lon: number },
+  fix: { lat: number; lon: number; accuracy: number },
+): Position | null {
+  const metres = metresBetween(airport, fix);
+  if (metres + fix.accuracy <= AT_AIRPORT_M) return "airport";
+  if (metres - fix.accuracy > AT_AIRPORT_M) return "away";
+  return null;
 }

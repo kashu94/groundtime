@@ -77,7 +77,7 @@ function LayoverCard({ brief }: { brief: Layover }) {
           <dd className="font-mono">{hhmm(w.free_from_local)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Dinner at</dt>
+          <dt className="text-xs text-muted">Meal at</dt>
           <dd className="font-mono">{hhmm(w.meal_at_local)}</dd>
         </div>
         <div>
@@ -93,8 +93,8 @@ function LayoverCard({ brief }: { brief: Layover }) {
         <p className="text-sm text-muted">No place fits this evening.</p>
       ) : (
         <ol className="flex flex-col gap-3">
-          {brief.picks.map((p) => (
-            <li key={p.name} className="rounded-lg border border-line p-3">
+          {brief.picks.map((p, i) => (
+            <li key={`${p.name}-${i}`} className="rounded-lg border border-line p-3">
               <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                 {p.name} <TasteMatch affinity={p.affinity} />
               </p>
@@ -135,7 +135,13 @@ export default function Crew() {
   const [layoverError, setLayoverError] = useState<string | null>(null);
 
   const loadLayover = useCallback(() => {
-    tool<Layover>("my_layover").then(setBrief, (err: Error) => setLayoverError(err.message));
+    tool<Layover>("my_layover").then(
+      (b) => {
+        setBrief(b);
+        setLayoverError(null);
+      },
+      (err: Error) => setLayoverError(err.message),
+    );
   }, []);
   useEffect(() => {
     if (!me.crew_id) return;

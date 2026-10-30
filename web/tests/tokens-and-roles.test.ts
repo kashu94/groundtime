@@ -27,7 +27,7 @@ describe("roles and views", () => {
     expect(homeFor(["crew"])).toBe("/crew");
     expect(homeFor(["customer_care"])).toBe("/care");
     expect(homeFor(["admin"])).toBe("/admin");
-    expect(homeFor(["admin", "customer_care"])).toBe("/admin");
+    expect(homeFor(["admin", "customer_care"])).toBe("/care");
   });
 
   it("shows only the views a role uses", () => {
@@ -35,7 +35,7 @@ describe("roles and views", () => {
     expect(viewsFor(["crew"]).map((v) => v.href)).toEqual(["/crew"]);
     expect(viewsFor(["customer_care"]).map((v) => v.href)).toEqual(["/care"]);
     expect(viewsFor(["admin"]).map((v) => v.href)).toEqual(["/admin"]);
-    expect(viewsFor(["admin", "customer_care"]).map((v) => v.href)).toEqual(["/admin", "/care"]);
+    expect(viewsFor(["admin", "customer_care"]).map((v) => v.href)).toEqual(["/care", "/admin"]);
     expect(viewsFor(["traveller"])[0]).toMatchObject({ label: "My trip", hint: "Your wait, planned" });
   });
 });

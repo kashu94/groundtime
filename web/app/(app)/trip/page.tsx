@@ -5,13 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AirlineBadge, airlineOf } from "@/components/airline";
 import { Booking } from "@/components/booking";
+import { CareDesk } from "@/components/care-desk";
 import { Concierge } from "@/components/concierge";
 import { useMe } from "@/components/me";
 import { Late, PlanView } from "@/components/plan";
 import { TastePicker } from "@/components/taste";
 import { Button, cx, day, Mono, Notice, Panel, Spinner } from "@/components/ui";
+import { WhereNow } from "@/components/where";
 import { tool } from "@/lib/client";
-import { hhmm, POSITIONS, type BookedLeg, type MyGroundtime, type MyTrip, type Position } from "@/lib/groundtime";
+import { hhmm, later, type BookedLeg, type MyGroundtime, type MyTrip, type Position } from "@/lib/groundtime";
 
 function LegRow({ leg }: { leg: BookedLeg }) {
   const late = leg.delay_minutes > 0;
@@ -28,7 +30,7 @@ function LegRow({ leg }: { leg: BookedLeg }) {
         <span className="text-muted">{day(leg.departs_local.slice(0, 10))}</span>
         <Mono className={cx(late && "text-muted line-through")}>{hhmm(leg.departs_local)}</Mono>
         <span className="text-muted">to</span>
-        <Mono>{hhmm(leg.arrives_local)}</Mono>
+        <Mono>{hhmm(late ? later(leg.arrives_local, leg.delay_minutes) : leg.arrives_local)}</Mono>
         <Late minutes={leg.delay_minutes} expected={leg.expected_departure_local} />
       </div>
     </li>
@@ -82,8 +84,23 @@ function Booked({
     }
   }
 
+  const taste = editing ? (
+    <TastePicker onSaved={changed} onClose={() => setEditing(false)} />
+  ) : (
+    <Panel title="What you love" icon={<Heart size={14} className="text-accent" />}>
+      <p className="text-sm text-muted">
+        {trip.taste.loves.length
+          ? trip.taste.loves.map((l) => l.name).join(", ")
+          : "Nothing saved yet, so plans show what's popular."}
+      </p>
+      <Button tone="secondary" className="mt-3" onClick={() => setEditing(true)}>
+        <Heart size={14} /> Edit what I love
+      </Button>
+    </Panel>
+  );
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted">Hello{trip.name ? `, ${trip.name}` : ""}</p>
@@ -94,92 +111,70 @@ function Booked({
         </Button>
       </header>
 
-      <section className="rounded-lg border border-line bg-surface p-5">
-        <ul className="flex flex-col divide-y divide-rule">
-          {trip.legs.map((leg) => (
-            <LegRow key={leg.flight_id} leg={leg} />
-          ))}
-        </ul>
-        <p className="mt-3 text-[11px] text-muted">Times are local, in India.</p>
-      </section>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        <div className="flex min-w-0 flex-col gap-6">
+          <section className="rounded-lg border border-line bg-surface p-5">
+            <ul className="flex flex-col divide-y divide-rule">
+              {trip.legs.map((leg) => (
+                <LegRow key={leg.flight_id} leg={leg} />
+              ))}
+            </ul>
+            <p className="mt-3 text-[11px] text-muted">Times are local, in India.</p>
+          </section>
 
-      {w ? (
-        <p className="text-xl leading-snug tracking-tight sm:text-2xl">{w.headline}</p>
-      ) : (
-        <Notice>Every flight on this booking has left. Have a good trip.</Notice>
-      )}
-
-      {w && !w.connecting_from && (
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium">Where are you now?</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {POSITIONS.map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={trip.position === value}
-                disabled={moving}
-                onClick={() => trip.position !== value && move(value)}
-                className={cx(
-                  "rounded-lg border px-3 py-2 text-sm transition-colors disabled:cursor-wait",
-                  trip.position === value
-                    ? "border-accent bg-accent-soft font-semibold text-[#173f63]"
-                    : "border-line hover:bg-sunken",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      )}
-
-      {error && <Notice tone="error">{error}</Notice>}
-
-      {w && (
-        <Panel
-          title="Your time, planned"
-          icon={<Sparkles size={14} className="text-accent" />}
-          action={
-            plan && (
-              <Button tone="ghost" disabled={planning} onClick={planMyTime}>
-                {planning && <Spinner />} Plan again
-              </Button>
-            )
-          }
-        >
-          {plan ? (
-            <PlanView plan={plan} />
+          {w ? (
+            <p className="text-xl leading-snug tracking-tight sm:text-2xl">{w.headline}</p>
           ) : (
-            <div className="flex flex-col items-start gap-3">
-              <p className="text-sm text-muted">
-                Places, food and something to watch, picked by Qloo for what you love, each checked for opening hours,
-                your dietary needs and getting to your gate in time.
-              </p>
-              <Button tone="accent" className="h-10 px-4" disabled={planning} onClick={planMyTime}>
-                {planning ? <Spinner /> : <ArrowRight size={15} />} Plan my time
-              </Button>
-            </div>
+            <Notice>Every flight on this booking has left. Have a good trip.</Notice>
           )}
-        </Panel>
-      )}
 
-      {w && <Concierge onMoved={changed} />}
+          {w && !w.connecting_from && (
+            <WhereNow
+              position={trip.position}
+              airport={trip.airport_point}
+              airportName={`${w.city} airport`}
+              moving={moving}
+              onMove={move}
+            />
+          )}
 
-      {editing ? (
-        <TastePicker onSaved={changed} />
-      ) : (
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Button tone="secondary" onClick={() => setEditing(true)}>
-            <Heart size={14} /> Edit what I love
-          </Button>
-          <span className="text-muted">
-            {trip.taste.loves.length
-              ? trip.taste.loves.map((l) => l.name).join(", ")
-              : "Nothing saved yet, so plans show what's popular."}
-          </span>
+          {error && <Notice tone="error">{error}</Notice>}
+
+          {w && (
+            <Panel
+              title="Your time, planned"
+              icon={<Sparkles size={14} className="text-accent" />}
+              action={
+                plan && (
+                  <Button tone="ghost" disabled={planning} onClick={planMyTime}>
+                    {planning && <Spinner />} Plan again
+                  </Button>
+                )
+              }
+            >
+              {plan ? (
+                <PlanView plan={plan} />
+              ) : (
+                <div className="flex flex-col items-start gap-3">
+                  <p className="text-sm text-muted">
+                    Places, food and something to watch, picked by Qloo for what you love, each checked for opening
+                    hours, your dietary needs and getting to your gate in time.
+                  </p>
+                  <Button tone="accent" className="h-10 px-4" disabled={planning} onClick={planMyTime}>
+                    {planning ? <Spinner /> : <ArrowRight size={15} />} Plan my time
+                  </Button>
+                </div>
+              )}
+            </Panel>
+          )}
         </div>
-      )}
+
+        <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-4">
+          {w && <Concierge onMoved={changed} />}
+          {taste}
+          <CareDesk desk={trip.care} />
+        </aside>
+      </div>
     </div>
   );
 }
@@ -224,6 +219,7 @@ export default function Trip() {
           load();
         }}
         onCancel={trip.booked ? () => setBooking(false) : undefined}
+        care={trip.care}
       />
     );
   }

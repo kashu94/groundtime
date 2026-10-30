@@ -23,6 +23,7 @@ export function Concierge({ onMoved }: { onMoved?: () => void }) {
     setQuestion(q);
     setBusy(true);
     setError(null);
+    setAnswer(null);
     try {
       const out = await tool<ConciergeAnswer>("ask", { question: q });
       setAnswer(out);

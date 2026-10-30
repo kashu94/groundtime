@@ -17,10 +17,10 @@ describe("MCP tool results", () => {
   });
 
   it("turns tool errors into a code and a message", () => {
-    const err = errorOf("Error executing tool approve_plan: FORBIDDEN: you submitted this plan");
+    const err = errorOf("Error executing tool record_delay: FORBIDDEN: for customer care");
     expect(err).toBeInstanceOf(ToolCallError);
     expect(err.code).toBe("FORBIDDEN");
-    expect(err.message).toBe("you submitted this plan");
+    expect(err.message).toBe("for customer care");
     expect(() =>
       valueOf({ isError: true, content: [text("UNAUTHORIZED: sign in first")] }, false),
     ).toThrowError("sign in first");

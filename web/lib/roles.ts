@@ -19,8 +19,8 @@ export function viewsFor(roles: Role[]): View[] {
   const views: View[] = [];
   if (has("traveller")) views.push(ALL.trip);
   if (has("crew")) views.push(ALL.crew);
-  if (has("admin")) views.push(ALL.admin);
   if (has("customer_care")) views.push(ALL.care);
+  if (has("admin")) views.push(ALL.admin);
   return views;
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { CheckCircle2, Clock3, HeartHandshake, Pencil, Plane, Users, XCircle } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2, Clock3, HeartHandshake, History, Pencil, Plane, Search, Users, X, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useMe } from "@/components/me";
 import { Late } from "@/components/plan";
@@ -12,13 +12,61 @@ import {
   duration,
   hhmm,
   LAST_BOOKABLE,
+  matchesFlight,
+  MAX_DELAY_TIMES,
   planSummary,
   QUICK_DELAYS,
   todayInIndia,
   type BoardRow,
   type DelayedFlight,
+  type DelayRecord,
   type FlightCare,
+  type Station,
 } from "@/lib/groundtime";
+
+/** "Marked late 2 of 3 times · first 12:10 · latest 13:00 by neha.joshi", or null if never. */
+function DelayCount({ record }: { record: DelayRecord }) {
+  if (!record.times_delayed) return null;
+  const full = record.delays_left <= 0;
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted">
+      <span className={cx("font-medium", full ? "text-critical" : "text-foreground")}>
+        Marked late {record.times_delayed} of {MAX_DELAY_TIMES} times
+      </span>
+      {record.first_delayed_local && (
+        <span>
+          · first at <Mono>{hhmm(record.first_delayed_local)}</Mono>
+        </span>
+      )}
+      {record.recorded_local && (
+        <span>
+          · last change <Mono>{hhmm(record.recorded_local)}</Mono>
+          {record.recorded_by && <> by {record.recorded_by}</>}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function DelayHistory({ record }: { record: DelayRecord }) {
+  if (!record.history.length) return null;
+  return (
+    <div>
+      <p className="flex items-center gap-1.5 text-xs font-medium">
+        <History size={12} /> Changes so far
+      </p>
+      <ol className="mt-1 flex flex-col gap-0.5 text-xs text-muted">
+        {record.history.map((h, i) => (
+          <li key={i}>
+            <Mono>{hhmm(h.at_local)}</Mono> · {h.delay_minutes ? `${duration(h.delay_minutes)} late` : "cleared"}
+            {h.reason && h.reason !== "Not given" && h.reason !== "Back on time" && <> · {h.reason}</>}
+            {h.by && <> · {h.by}</>}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 /** Record a delay on one flight as operations confirm it; 0 clears it. */
 function DelayEditor({
@@ -35,6 +83,7 @@ function DelayEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const value = delayMinutes(minutes);
+  const full = row.delays_left <= 0;
 
   async function save(delay: number) {
     setBusy(true);
@@ -62,53 +111,72 @@ function DelayEditor({
       className="flex flex-col gap-3 rounded-md bg-sunken p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (value !== null) save(value);
+        if (value !== null && !full) save(value);
       }}
     >
-      <div className="flex flex-wrap items-center gap-2">
-        {QUICK_DELAYS.map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMinutes(String(m))}
-            className={cx(
-              "rounded-full border px-3 py-1 text-xs transition-colors",
-              value === m ? "border-accent bg-accent-soft font-medium text-[#173f63]" : "border-line bg-surface",
-            )}
-          >
-            {duration(m)}
-          </button>
-        ))}
-        <label className="flex items-center gap-1.5 text-xs">
+      <DelayHistory record={row} />
+      {full ? (
+        <p className="text-xs text-critical">
+          {row.flight_no} has been marked late {MAX_DELAY_TIMES} times, the most allowed. You can still clear the delay
+          if it leaves on time.
+        </p>
+      ) : (
+        <p className="text-xs text-muted">
+          {row.delays_left === MAX_DELAY_TIMES
+            ? `A flight can be marked late up to ${MAX_DELAY_TIMES} times, so give the best estimate operations have.`
+            : `${row.delays_left} more change${row.delays_left === 1 ? "" : "s"} allowed on this flight.`}
+        </p>
+      )}
+      {!full && (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            {QUICK_DELAYS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMinutes(String(m))}
+                className={cx(
+                  "rounded-full border px-3 py-1 text-xs transition-colors",
+                  value === m ? "border-accent bg-accent-soft font-medium text-[#173f63]" : "border-line bg-surface",
+                )}
+              >
+                {duration(m)}
+              </button>
+            ))}
+            <label className="flex items-center gap-1.5 text-xs">
+              <input
+                value={minutes}
+                onChange={(e) => setMinutes(e.target.value)}
+                inputMode="numeric"
+                aria-label="Delay in minutes"
+                placeholder="Minutes"
+                className="h-8 w-20 rounded-md border border-control bg-surface px-2 text-sm outline-none focus:border-accent"
+              />
+              min
+            </label>
+          </div>
           <input
-            value={minutes}
-            onChange={(e) => setMinutes(e.target.value)}
-            inputMode="numeric"
-            aria-label="Delay in minutes"
-            placeholder="Minutes"
-            className="h-8 w-20 rounded-md border border-control bg-surface px-2 text-sm outline-none focus:border-accent"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={200}
+            placeholder="Reason, e.g. late inbound aircraft (optional)"
+            className="h-9 rounded-md border border-control bg-surface px-3 text-sm outline-none focus:border-accent"
           />
-          min
-        </label>
-      </div>
-      <input
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        maxLength={200}
-        placeholder="Reason, e.g. late inbound aircraft (optional)"
-        className="h-9 rounded-md border border-control bg-surface px-3 text-sm outline-none focus:border-accent"
-      />
+        </>
+      )}
       {minutes.trim() && value === null && (
         <p className="text-xs text-critical">A delay is whole minutes, up to 12 hours.</p>
       )}
       {error && <Notice tone="error">{error}</Notice>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" tone="accent" disabled={busy || value === null}>
-          {busy && <Spinner />} Save
-        </Button>
+        {!full && (
+          <Button type="submit" tone="accent" disabled={busy || value === null || value === 0 || value === row.delay_minutes}>
+            {busy && <Spinner />} Save
+          </Button>
+        )}
         {row.delay_minutes > 0 && (
           <Button type="button" tone="secondary" disabled={busy} onClick={() => save(0)}>
-            Clear
+            Clear: back on time
           </Button>
         )}
         <Button type="button" tone="ghost" disabled={busy} onClick={onClose}>
@@ -119,11 +187,42 @@ function DelayEditor({
   );
 }
 
+const FILTERS = [
+  ["all", "All"],
+  ["to_leave", "Still to leave"],
+  ["delayed", "Delayed"],
+  ["groundtime", "With Groundtime travellers"],
+] as const;
+type Filter = (typeof FILTERS)[number][0];
+
 function Board({ onChanged, version }: { onChanged: (message: string, flightId: string) => void; version: number }) {
   const [date, setDate] = useState(todayInIndia);
   const [rows, setRows] = useState<BoardRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("to_leave");
+  const [cities, setCities] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    tool<Station[]>("stations").then(
+      (s) => setCities(Object.fromEntries(s.map((x) => [x.code, x.city]))),
+      () => undefined,
+    );
+  }, []);
+
+  const shown = useMemo(
+    () =>
+      (rows ?? []).filter(
+        (r) =>
+          matchesFlight(r, query, (c) => cities[c] ?? c) &&
+          (filter === "all" ||
+            (filter === "to_leave" && !r.left) ||
+            (filter === "delayed" && r.delay_minutes > 0) ||
+            (filter === "groundtime" && r.with_app > 0)),
+      ),
+    [rows, query, filter, cities],
+  );
 
   useEffect(() => {
     let live = true;
@@ -159,15 +258,62 @@ function Board({ onChanged, version }: { onChanged: (message: string, flightId: 
         />
       }
     >
+      <div className="mb-4 flex flex-col gap-2">
+        <label className="relative block">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            inputMode="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search flights"
+            placeholder="Search a flight number, airport or city: KS434, GOI, Goa Bengaluru"
+            className="h-10 w-full rounded-md border border-control bg-surface pl-9 pr-9 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+          />
+          {query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted hover:bg-sunken hover:text-foreground"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </label>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {FILTERS.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+              className={cx(
+                "rounded-full border px-3 py-1 text-xs transition-colors",
+                filter === value ? "border-accent bg-accent-soft font-medium text-[#173f63]" : "border-line hover:bg-sunken",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+          {rows && (
+            <span className="ml-auto text-xs text-muted">
+              {shown.length} of {rows.length} flights
+            </span>
+          )}
+        </div>
+      </div>
       {error ? (
         <Notice tone="error">{error}</Notice>
       ) : !rows ? (
         <Spinner className="text-muted" />
       ) : rows.length === 0 ? (
         <Empty icon={<Plane size={22} />}>No departures that day.</Empty>
+      ) : shown.length === 0 ? (
+        <Empty icon={<Search size={22} />}>No flight matches that. Try a flight number like KS434, or an airport.</Empty>
       ) : (
-        <ul className="flex flex-col divide-y divide-rule">
-          {rows.map((r) => (
+        <ul className="flex max-h-[34rem] flex-col divide-y divide-rule overflow-y-auto pr-1">
+          {shown.map((r) => (
             <li key={r.flight_id} className={cx("py-2.5 first:pt-0 last:pb-0", r.left && "opacity-55")}>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
                 <Mono className="w-14 font-semibold">{r.flight_no}</Mono>
@@ -185,12 +331,18 @@ function Board({ onChanged, version }: { onChanged: (message: string, flightId: 
                   ) : (
                     editing !== r.flight_id && (
                       <Button tone="ghost" onClick={() => setEditing(r.flight_id)}>
-                        <Pencil size={13} /> Record delay
+                        <Pencil size={13} />{" "}
+                        {r.delays_left <= 0 ? "View delay" : r.delay_minutes > 0 ? "Change delay" : "Record delay"}
                       </Button>
                     )
                   )}
                 </span>
               </div>
+              {r.times_delayed > 0 && (
+                <div className="mt-1">
+                  <DelayCount record={r} />
+                </div>
+              )}
               {editing === r.flight_id && !r.left && (
                 <div className="mt-2">
                   <DelayEditor
@@ -305,6 +457,9 @@ export default function Care() {
                       {f.with_app} with Groundtime · {f.booked} booked
                       {f.reason && f.reason !== "Not given" && <> · {f.reason}</>}
                     </p>
+                    <div className="mt-1">
+                      <DelayCount record={f} />
+                    </div>
                   </button>
                 </li>
               ))}
@@ -348,7 +503,7 @@ export default function Care() {
                           {t.wait.mode === "city" ? "Near the airport" : "In the terminal"}
                         </span>
                         <span className="ml-auto">
-                          {t.dietary_needs_met ? (
+                          {t.dietary_needs_met === null ? null : t.dietary_needs_met ? (
                             <span className="inline-flex items-center gap-1 text-xs text-ok">
                               <CheckCircle2 size={13} /> Dietary needs met
                             </span>

@@ -3,7 +3,7 @@
 import { ArrowRight, Eye, EyeOff, Lock, LogOut, Plane } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
-import { NightApproach } from "@/components/login-art";
+import { TerminalAtDusk } from "@/components/login-art";
 import { Button, Field, Notice, Spinner } from "@/components/ui";
 import { signIn, signOut } from "@/lib/client";
 import { homeFor, type Me } from "@/lib/roles";
@@ -35,15 +35,6 @@ function nextPage(): string | null {
   return url.pathname + url.search + url.hash;
 }
 
-// The demo sign-ins (data/team/demo_team.json), one of each kind. Passwords come from
-// whoever set the accounts up.
-const DEMO = [
-  ["Traveller", "tr1001.kapoor … tr1004.das"],
-  ["Crew", "c1042.nair"],
-  ["Customer care", "neha.joshi"],
-  ["Admin", "priya.desai"],
-] as const;
-
 export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,7 +53,13 @@ export default function Login() {
     try {
       await signIn(String(form.get("username") ?? ""), String(form.get("password") ?? ""));
       const me = await signedIn();
-      window.location.replace(me ? (nextPage() ?? homeFor(me.roles)) : "/login");
+      if (!me) {
+        setError("Signed in, but this account isn't set up for Groundtime yet. Ask your administrator.");
+        await signOut().catch(() => undefined);
+        setBusy(false);
+        return;
+      }
+      window.location.replace(nextPage() ?? homeFor(me.roles));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
       setBusy(false);
@@ -72,8 +69,8 @@ export default function Login() {
   return (
     <main className="grid flex-1 lg:grid-cols-[1.1fr_1fr]">
       <section className="relative hidden flex-col justify-between overflow-hidden bg-[#040a18] px-12 py-10 text-white lg:flex">
-        {/* the night approach to the runway, behind the panel's words */}
-        <NightApproach />
+        {/* a departure lounge at dusk, behind the panel's words */}
+        <TerminalAtDusk />
         <div className="relative flex items-center gap-2.5">
           <span className="grid h-8 w-8 place-items-center rounded-md bg-white text-[#0c2340]">
             <Plane size={16} />
@@ -86,19 +83,10 @@ export default function Login() {
             Every hour on the ground, worth having.
           </h2>
           <p className="mt-3 max-w-md text-base leading-relaxed text-[#d4dde8]">
-            When a flight is delayed, Groundtime plans the wait around what you love, with Qloo: somewhere to see and
-            eat near the airport, the best of the terminal, and a film that ends before boarding. Every stop is checked
-            for opening hours, your dietary needs and getting back in time.
+            When a flight is delayed, Groundtime plans the wait around what you love, with Qloo: somewhere near the
+            airport if you haven&apos;t left yet, the best of the terminal if you&apos;re already there, and a film
+            that ends before boarding. Every stop is checked for opening hours, your dietary needs and your gate time.
           </p>
-          <p className="mt-10 text-sm font-medium text-white">Try it as</p>
-          <dl className="mt-3 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 rounded-lg bg-[#040a18]/55 p-4 text-sm ring-1 ring-white/10">
-            {DEMO.map(([role, user]) => (
-              <div key={role} className="contents">
-                <dt className="text-[#b9c6d6]">{role}</dt>
-                <dd className="font-mono text-[#eef2f7]">{user}</dd>
-              </div>
-            ))}
-          </dl>
         </div>
         <p className="relative text-sm text-[#d4dde8]">Crew get the same care on a layover.</p>
       </section>
@@ -166,9 +154,6 @@ export default function Login() {
               {busy ? <Spinner /> : <Lock size={14} />} Sign in
             </Button>
           </form>
-          <p className="mt-6 text-xs text-muted lg:hidden">
-            Try it as a traveller (tr1001.kapoor), crew (c1042.nair), customer care (neha.joshi) or admin (priya.desai).
-          </p>
         </div>
       </section>
     </main>
