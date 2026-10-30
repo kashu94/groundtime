@@ -37,7 +37,7 @@ best, the same meal voucher. With Groundtime:
    aircraft". A flight can be marked late at most three times, and every change shows who made
    it and when. Every plan on that flight follows within seconds: passengers', and the crew's
    evening.
-3. **Each traveller opens their plan,** or asks the concierge: "my flight's late, what can I
+3. **Each traveller opens their plan,** or asks the assistant: "my flight's late, what can I
    do?" Where they are decides what is possible. Their phone can tell: with their permission,
    My trip compares its location with the airport, on the device, and sends Groundtime only
    "at the airport" or "not yet". Or they tap which. The customer care number is on the page.
@@ -71,15 +71,32 @@ that matter: the terminal door (bag drop and security still ahead) and the gate
 
 Every flight in the network is domestic, so no visa applies.
 
-### The concierge: an agent with Qloo tools
+### The assistant: one agent, each role's own tools
 
-A traveller can simply ask. Amazon Nova decides which tools to call (`my_wait`,
-`plan_groundtime`, `set_position` when they say "I'm already at the airport",
-`find_to_watch`, `search_catalogue`) and words the answer. Before it is shown, every
-capitalised name in it is matched against what the tools returned; one that isn't there means
-the model made it up, and the traveller gets the checked plan written out instead
-(`crewops.taste.concierge`). With no model, or Bedrock unavailable, they get that written-out
-plan straight away.
+"Ask Groundtime", in the corner of every page, answers as the role of that page, with that
+role's tools, each the same call the page makes as the signed-in user, so it can never see
+more than they can (`crewops.assistant`):
+
+| Role | The assistant can look up |
+|---|---|
+| Traveller | Their wait, the checked plan, something to watch, Qloo's catalogue; it records where they are when they say "I'm already at the airport" |
+| Crew | Their duty days and delays, and their next layover's meal plan |
+| Customer care | Flights by number, airport or city, delayed flights, and the passengers waiting for one (dietary needs only as met) |
+| Admin | The accounts and roles |
+
+Every role also gets the Groundtime guide for that role (how the app works, the airport times
+it plans with, the airlines, the customer care number). Amazon Nova decides which tools to
+call and words the answer. It only reads: delays are recorded and passwords reset on their
+pages. It answers only about Groundtime, the person's own trips or work, the airlines here
+and air travel; anything else gets a fixed reply, and baggage, fares or refunds get the
+customer care number. Before an answer is shown, every capitalised name in it is matched
+against what the tools returned; one that isn't there means the model made it up, and the
+person gets the checked summary for their role instead (for a traveller, their plan written
+out). With no model, or Bedrock unavailable, they get that summary straight away.
+
+Answers can be read aloud by Amazon Polly in Indian English (the Kajal voice), and questions
+spoken where the browser has speech recognition. Speech is made on the server, only ever of
+the assistant's own answer, and limited per person.
 
 ### Privacy
 
@@ -94,12 +111,12 @@ airport.
 
 | Role | Sees and does |
 |---|---|
-| Traveller | Books a trip and shares what they love; their wait, their plan, the concierge, the customer care number |
+| Traveller | Books a trip and shares what they love; their wait, their plan, the customer care number |
 | Crew | Their flights for the week with any delay; a plan for their next layover; their own taste |
 | Customer care | The flight board, searchable: records delays (three times at most per flight) and clears them; every waiting passenger's plan |
 | Admin | The accounts, and password resets |
 
-Who may do what is decided in the MCP server from the caller's verified Cognito groups and
+Every role has the assistant, with its own tools. Who may do what is decided in the MCP server from the caller's verified Cognito groups and
 profile, never from what they type.
 
 ## Architecture
@@ -112,7 +129,8 @@ profile, never from what they type.
                                                                            ├──► Qloo Taste AI API
                                                                            │    (key from SSM SecureString)
                                                                            ├──► Amazon Nova 2 Lite on Bedrock
-                                                                           │    (the concierge only)
+                                                                           │    (the assistant only)
+                                                                           ├──► Amazon Polly (answers read aloud)
                                                                            └──► DynamoDB: accounts, bookings,
                                                                                 taste, delays, Qloo cache
 ```
@@ -132,7 +150,8 @@ profile, never from what they type.
 | Amplify Hosting | The Next.js web app (server-side rendering) |
 | Cognito | Sign-in; roles are groups. No self sign-up, no email or phone stored |
 | Bedrock AgentCore Runtime | Hosts the MCP server (stateless streamable HTTP, Cognito JWT authorizer) |
-| Bedrock (Amazon Nova 2 Lite) | The concierge's tool loop |
+| Bedrock (Amazon Nova 2 Lite) | The assistant's tool loop |
+| Polly | The assistant's answers read aloud, in Indian English |
 | DynamoDB | One on-demand table: profiles, bookings, taste, delays, a day's cache of Qloo answers |
 | Systems Manager Parameter Store | The Qloo API key, as a SecureString read at run time |
 
@@ -143,12 +162,14 @@ Three CloudFormation stacks: `Groundtime-<stage>-Data`, `-Auth` and `-Mcp`.
 ```
 src/crewops/
   taste/        Groundtime: Qloo client, the wait and the plan, bookings, layovers, concierge
+  assistant.py  the assistant: each role's tools, the guide, the topic rule
+  voice.py      answers read aloud with Amazon Polly
   mcp/          the MCP server, its API (role checks), the package builder and a test client
   auth/         token checks, the team file and account provisioning
   store/        the DynamoDB table: profiles, bookings, delays, taste, Qloo cache
   domain/       typed records: flights, crew trips, crew, airlines, roles
   network.py    the network in memory, from the seed week to the end of the year
-  bedrock.py    the concierge's Bedrock client and circuit breaker
+  bedrock.py    the assistant's Bedrock client and circuit breaker
 infra/          AWS CDK app (Python): Data, Auth and Mcp stacks
 web/            Next.js app: My trip, Crew, Customer care, Admin
 data/seed/      the network's seed week (airlines, crew, flights, crew trips)
@@ -246,7 +267,9 @@ the shell wins. Only `AWS_PROFILE` is required.
 | `QLOO_API_URL` | `https://hackathon.api.qloo.com` | Qloo Taste AI API |
 | `QLOO_API_KEY` | none | Local runs only; the deployed server reads Parameter Store |
 | `CREWOPS_QLOO_CACHE_HOURS` | `24` | How long a Qloo answer is reused |
-| `CREWOPS_CONCIERGE_MODEL_ID` | `global.amazon.nova-2-lite-v1:0` | The concierge's model; any Converse model with tool calling |
+| `CREWOPS_CONCIERGE_MODEL_ID` | `global.amazon.nova-2-lite-v1:0` | The assistant's model; any Converse model with tool calling |
+| `CREWOPS_POLLY_VOICE` | `Kajal` | Polly voice for answers read aloud |
+| `CREWOPS_POLLY_ENGINE` | `neural` | Polly engine (falls back to the standard Aditi voice) |
 
 The deployed server runs on the real clock. Tests and local runs use a fixed moment
 (13 October 2026, 13:00 in India), so they give the same result every time.
@@ -275,7 +298,9 @@ at 16:00 every day, so before 16:00 it is today's; after that, tomorrow's.
 3. As `tr1001.kapoor`, open My trip: the plan near Goa airport, on the way in, ending at the
    terminal in time. Switch to "I'm at the airport" (or "Use my location" at the airport): the
    plan stays inside the terminal.
-4. Ask the concierge "Something to watch before I board?".
+4. Open "Ask Groundtime", turn on the speaker, and ask "Something to watch before I board?":
+   the answer is read aloud. As `neha.joshi`, ask "Which flights are delayed?"; as
+   `c1042.nair`, "Where can I eat on my layover?"; ask anything off topic and it declines.
 5. Back as `neha.joshi`, open KS434 under "Delayed now": every Groundtime passenger's plan,
    with their dietary needs shown only as met.
 

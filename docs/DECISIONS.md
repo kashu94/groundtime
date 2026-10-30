@@ -57,13 +57,25 @@ questionnaire at the gate.
 Traded away: guessing taste from booking history. It would need data an airline holds and a
 hackathon doesn't, and it would be less honest than asking.
 
-## D5. The concierge is an agent, and is checked like one
+## D5. One assistant, each role's tools, and checked like one
 
-A traveller can ask in their own words. Amazon Nova chooses which tools to call (the wait, the
-plan, where they are, something to watch, Qloo's catalogue) and words the answer. Every
-capitalised name in the answer must appear in what the tools returned; one that doesn't means
-the model made it up, and the traveller gets the checked plan written out instead. The
-answer is never worse than the plan.
+Anyone can ask in their own words: a traveller about their wait, crew about their duties and
+layover, customer care about flights and waiting passengers, an admin about accounts. It is
+one assistant, not four, given the tools of the role whose page it is asked from, and each
+tool is the same API call that page makes, so it can never see more than the person asking.
+Amazon Nova chooses which tools to call and words the answer. Every capitalised name in the
+answer must appear in what the tools returned; one that doesn't means the model made it up,
+and the person gets the checked summary for their role instead. The answer is never worse
+than the summary.
+
+It only reads, apart from a traveller saying where they are. Recording a delay or resetting a
+password stays on its page, where the person sees exactly what changes. It only answers about
+Groundtime and air travel: an airline's assistant that also writes poems is a liability, and
+one that guesses a baggage allowance is worse, so those go to customer care.
+
+Answers can be read aloud with Amazon Polly in Indian English. Speech is made on the server,
+whose role already holds the AWS permissions, so the web app still needs no AWS credentials;
+only the assistant's own answer is spoken, never text a caller sends.
 
 Nova 2 Lite through Bedrock's Converse API: small and fast is enough when the engine has done
 the reasoning, and the model is a setting, not code.
@@ -98,7 +110,7 @@ credentials: sign-in is Cognito's public API and every call carries the user's t
 
 Three CDK stacks in Python (Data, Auth, Mcp). Everything deploys to `ap-southeast-2` (Sydney)
 by default, the region the target account's organization allows, with every service used:
-DynamoDB, Cognito, AgentCore, Bedrock with Nova 2 Lite (the `global.` profile) and Parameter
+DynamoDB, Cognito, AgentCore, Bedrock with Nova 2 Lite (the `global.` profile), Polly and Parameter
 Store. Region and model are settings, so another region is a change to `.env`. Every resource
 is `groundtime-<stage>-...` and every stack `Groundtime-<stage>-...`, derived in one place
 (`crewops.config`), so a stage can share an account with anything else and never touch it.

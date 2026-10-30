@@ -19,14 +19,16 @@ putting the checked answer into words.
                                                │
        Cognito user pool ◄─────────────────────┤
                                                ├──► Qloo Taste AI API (Search, Insights)
-                                               ├──► Amazon Nova 2 Lite (concierge only)
+                                               ├──► Amazon Nova 2 Lite (the assistant only)
+                                               ├──► Amazon Polly (answers read aloud)
                                                ├──► SSM Parameter Store (the Qloo key)
                                                └──► DynamoDB (one table)
 ```
 
 Three stacks: `Groundtime-<stage>-Data` (the table), `-Auth` (the user pool, one group per
 role, the web client) and `-Mcp` (the AgentCore runtime and its role). The execution role may
-read and write the table, invoke the one concierge model, read the one SSM parameter that
+read and write the table, invoke the one assistant model, synthesize speech with Polly, read
+the one SSM parameter that
 holds the Qloo key, and reset passwords in the pool. Nothing else.
 
 ## The network
@@ -113,14 +115,32 @@ booking, the taste and the delays.
   flight when the wait is spent outside; a series if an episode does. Every stop says why it
   was chosen, and every rejection is counted.
 
-## The concierge
+## The assistant
 
-A Converse tool loop on Amazon Nova 2 Lite with five tools (`my_wait`, `plan_groundtime`,
-`set_position`, `find_to_watch`, `search_catalogue`), at most five rounds and 25 seconds.
-Before its answer is shown, every run of capitalised words in it must appear in a tool result
-or the question; otherwise, or with no model, or when Bedrock is down (a circuit breaker stops
-waiting on it after three failures in a row), the traveller gets the plan written out from
-the checked facts.
+One Converse tool loop on Amazon Nova 2 Lite (`crewops.assistant`), at most five rounds and
+25 seconds, serving the role of the page it's asked from, which the caller must hold. Its
+tools are that role's: a traveller's are the concierge's five (`my_wait`, `plan_groundtime`,
+`set_position`, `find_to_watch`, `search_catalogue`); crew get `my_flights` and `my_layover`;
+customer care get `find_flights` (the board, searched), `delayed_flights` and `flight_care`;
+an admin gets `accounts`. Each is the API call the page makes, as the caller, so role checks
+are the same ones. Every role also gets `groundtime_guide`: that role's guide and the common
+facts (airlines, airports, airport times, the customer care number). Only the traveller's
+`set_position` changes anything.
+
+The system prompt limits it to Groundtime, the person's own trips or work, the airlines and
+air travel, with a fixed reply for anything else, and sends baggage, fares and refunds to
+customer care. The web app sends the last six turns, each cut short, as context. Before an
+answer is shown, every run of capitalised words in it must appear in a tool result, the
+question or an earlier turn; otherwise, or with no model, or when Bedrock is down (a circuit
+breaker stops waiting on it after three failures in a row), the person gets the checked
+summary for their role: a traveller their plan written out, crew their next duties,
+customer care the delayed flights, an admin the accounts by role.
+
+With `voice`, the answer comes back as MP3 from Amazon Polly (`crewops.voice`: Kajal, neural,
+Indian English; the standard Aditi voice if neural isn't available), made on the server so
+the web app needs no AWS credentials. Only the assistant's own answer is spoken, and each
+user gets 40 answers read aloud in ten minutes. Spoken questions use the browser's own speech
+recognition, where it has one.
 
 ## Delays and customer care
 
@@ -198,5 +218,5 @@ every role rule stays in one place and the app holds no key.
   same-site cookies, refreshing them before they expire.
 - **Actions.** `/api/tools/<name>` forwards one of a fixed list of MCP tools with the user's
   access token, and only for requests whose Origin is this site.
-- **Pages.** My trip (travellers: booking, the plan, the concierge), Crew, Customer care and
+- **Pages.** My trip (travellers: booking, the plan), Crew, Customer care and
   Admin, each shown only to its role.
