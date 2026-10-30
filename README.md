@@ -32,11 +32,15 @@ best, the same meal voucher. With Groundtime:
    films, series, books, each looked up in Qloo's catalogue) or searches Qloo for anything
    else, and says what they can eat. Nothing is saved until they confirm the booking; then the
    trip and the taste are saved together.
-2. **A delay is recorded once.** Customer care records it on the flight board as operations
-   confirm it: "KS434, 240 minutes, late inbound aircraft". Every plan on that flight changes at
-   once: passengers', and the crew's evening.
+2. **A delay is recorded once.** Customer care finds the flight on the board (search by number,
+   airport or city) and records it as operations confirm it: "KS434, 240 minutes, late inbound
+   aircraft". A flight can be marked late at most three times, and every change shows who made
+   it and when. Every plan on that flight follows within seconds: passengers', and the crew's
+   evening.
 3. **Each traveller opens their plan,** or asks the concierge: "my flight's late, what can I
-   do?" They say where they are, because that decides what is possible.
+   do?" Where they are decides what is possible. Their phone can tell: with their permission,
+   My trip compares its location with the airport, on the device, and sends Groundtime only
+   "at the airport" or "not yet". Or they tap which. The customer care number is on the page.
 4. **Customer care sees every waiting passenger's plan,** and that each one meets their dietary
    needs, without ever seeing what the needs are.
 
@@ -82,15 +86,17 @@ plan straight away.
 Qloo is called only from the server, with ids, a map point and a radius. No name, username,
 traveller id, crew id or email is ever sent; a guard refuses any request that could carry one
 (`crewops.taste.qloo.guard`). Customer care sees that a plan meets someone's dietary needs,
-never what the needs are. Taste is opt-in and saved only when a booking is confirmed.
+never what the needs are. Taste is opt-in: first saved when a booking is confirmed, and
+changed from My trip. A location is never sent or stored, only whether the traveller is at the
+airport.
 
 ## Roles
 
 | Role | Sees and does |
 |---|---|
-| Traveller | Books a trip and shares what they love; their wait, their plan, the concierge |
+| Traveller | Books a trip and shares what they love; their wait, their plan, the concierge, the customer care number |
 | Crew | Their flights for the week with any delay; a plan for their next layover; their own taste |
-| Customer care | The flight board: records and clears delays; every waiting passenger's plan |
+| Customer care | The flight board, searchable: records delays (three times at most per flight) and clears them; every waiting passenger's plan |
 | Admin | The accounts, and password resets |
 
 Who may do what is decided in the MCP server from the caller's verified Cognito groups and
@@ -264,9 +270,11 @@ at 16:00 every day, so before 16:00 it is today's; after that, tomorrow's.
 
 1. As `tr1004.das`, book Goa to Bengaluru, pick a few things you love from the short list,
    say you eat vegetarian, and confirm. My trip shows the flight on time.
-2. As `neha.joshi`, open the flight board for that day and record KS434 240 minutes late.
+2. As `neha.joshi`, search the flight board for KS434 and record it 240 minutes late. The board
+   shows "Marked late 1 of 3 times", with when and by whom.
 3. As `tr1001.kapoor`, open My trip: the plan near Goa airport, on the way in, ending at the
-   terminal in time. Switch to "I'm at the airport": the plan stays inside the terminal.
+   terminal in time. Switch to "I'm at the airport" (or "Use my location" at the airport): the
+   plan stays inside the terminal.
 4. Ask the concierge "Something to watch before I board?".
 5. Back as `neha.joshi`, open KS434 under "Delayed now": every Groundtime passenger's plan,
    with their dietary needs shown only as met.

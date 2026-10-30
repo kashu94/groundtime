@@ -51,7 +51,7 @@ One on-demand DynamoDB table, `groundtime-<stage>-ops` (`crewops.store.schema`):
 | A traveller's booking | `BOOKING / TR-id` |
 | Traveller taste profile | `TRAVELLER#TR-id / TASTE` |
 | Crew taste profile | `CREW#C-id / TASTE` |
-| Delay on a flight | `DELAY / flight-id` |
+| Delay on a flight, with every change and how many times it was marked late | `DELAY / flight-id` |
 | Qloo answer, cached a day | `QLOO / request-hash` (TTL) |
 
 Bookings and delays each sit in one partition, so customer care reads all of either with one
@@ -71,6 +71,12 @@ everything first (the flights exist, connect and can still be booked; every pick
 of a known kind, at most five; every dietary need is one the engine checks), then saves the
 booking and the taste profile. A booking that fails saves nothing; nothing a traveller browses
 is kept.
+
+A trip starts as "not at the airport yet"; where the traveller is is asked on the day, not at
+booking. On My trip, with their permission, the browser compares the device's location with
+the departure airport (within 3 km, allowing for the reading's accuracy) and sends only
+`set_position` with `airport` or `away`; a reading too rough to tell changes nothing. The
+location itself never leaves the device.
 
 The demo passengers (`data/team/demo_travellers.json`) come already booked by flight number,
 on the next day their flights operate. When one says where they are, their booking is saved
@@ -118,14 +124,21 @@ the checked facts.
 
 ## Delays and customer care
 
-Customer care records a delay from the flight board (`record_delay`): minutes (up to 12
-hours), a reason, who recorded it. Zero clears it, and a flight that has left can't be
-changed. Every plan reads delays from the table (cached 30 seconds per server), so a recorded
-delay moves every affected passenger's deadlines and plan, and a delay on the last leg of a
-crew member's day moves their release and so their layover evening.
+Customer care finds a flight on the board by number, airport or city, and records a delay
+(`record_delay`): minutes (up to 12 hours), a reason, who recorded it. Zero clears it, and a
+flight that has left can't be changed. A flight can be marked late at most three times; the
+count and the check are one conditional DynamoDB update, so two people saving at once can't
+pass it. Clearing is always allowed. Every change is kept in the delay's history, and the
+board shows how many times a flight has been marked late, when first and last, and by whom.
 
-`flight_care` lists every Groundtime traveller on a delayed flight with their plan, and shows
-a dietary need only as met, never what it is.
+Every plan reads delays from the table (cached five seconds per server), so a recorded delay
+moves every affected passenger's deadlines and plan, and a delay on the last leg of a crew
+member's day moves their release and so their layover evening.
+
+`flight_care` lists every Groundtime traveller on a delayed flight with their plan (planned in
+parallel), and shows a dietary need only as met, never what it is: the staff view drops the
+dietary request and every reason that names a diet, and words the reasons about the traveller
+rather than to them.
 
 ## Layover care
 
