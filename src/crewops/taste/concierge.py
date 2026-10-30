@@ -287,62 +287,94 @@ class Concierge:
         return ConciergeAnswer(write_out(plan), "plan", tools, 0, [why])
 
     def _agent(self, traveller: str, question: str) -> ConciergeAnswer:
-        deadline = self.clock() + self.budget_seconds
-        messages: list[dict[str, Any]] = [{"role": "user", "content": [{"text": question}]}]
-        used: list[str] = []
-        results: list[str] = []
-        calls = 0
-        for _ in range(MAX_ROUNDS):
-            if self.clock() > deadline:
-                break
-            response = self.client.converse(
-                modelId=self.model_id,
-                system=[{"text": SYSTEM}],
-                messages=messages,
-                toolConfig={"tools": TOOLS},
-                inferenceConfig={"maxTokens": 700, "temperature": 0},
-            )
-            calls += 1
-            message = response["output"]["message"]
-            if response.get("stopReason") != "tool_use":
-                text = "\n".join(
-                    b["text"] for b in message.get("content", []) if "text" in b
-                ).strip()
-                if response.get("stopReason") not in ("end_turn", "stop_sequence") or not text:
-                    break
-                unknown = grounded(text, results, question)
-                if unknown:
-                    answer = self._written_out(
-                        traveller, question, "model named " + ", ".join(unknown[:3])
-                    )
-                    answer.tools = used + answer.tools
-                    answer.model_calls = calls
-                    return answer
-                return ConciergeAnswer(text, "model", used, calls)
-            messages.append({"role": "assistant", "content": message["content"]})
-            replies = []
-            for block in message["content"]:
-                use = block.get("toolUse")
-                if not use:
-                    continue
-                used.append(use["name"])
-                try:
-                    out = self._run(traveller, use["name"], use.get("input") or {})
-                    text, status = json.dumps(out, default=str)[:MAX_RESULT_CHARS], "success"
-                    results.append(text)
-                except (GroundtimeError, QlooError) as exc:
-                    text, status = json.dumps({"error": str(exc)}), "error"
-                replies.append(
-                    {
-                        "toolResult": {
-                            "toolUseId": use["toolUseId"],
-                            "content": [{"text": text}],
-                            "status": status,
-                        }
-                    }
-                )
-            messages.append({"role": "user", "content": replies})
-        answer = self._written_out(traveller, question, "the agent ran out of time")
-        answer.tools = used + answer.tools
-        answer.model_calls = calls
+        run = run_agent(
+            self.client,
+            self.model_id,
+            SYSTEM,
+            TOOLS,
+            lambda name, args: self._run(traveller, name, args),
+            [{"role": "user", "content": [{"text": question}]}],
+            budget_seconds=self.budget_seconds,
+            clock=self.clock,
+        )
+        if run.text is not None:
+            unknown = grounded(run.text, run.results, question)
+            if not unknown:
+                return ConciergeAnswer(run.text, "model", run.used, run.calls)
+            why = "model named " + ", ".join(unknown[:3])
+        else:
+            why = "the agent ran out of time"
+        answer = self._written_out(traveller, question, why)
+        answer.tools = run.used + answer.tools
+        answer.model_calls = run.calls
         return answer
+
+
+@dataclass(slots=True)
+class AgentRun:
+    text: str | None
+    """The model's final words, or None when it gave none in time."""
+    used: list[str]
+    results: list[str]
+    """Every successful tool result, as the model saw it: what an answer may name."""
+    calls: int
+
+
+def run_agent(
+    client: Any,
+    model_id: str,
+    system: str,
+    tools: list[dict[str, Any]],
+    run: Callable[[str, dict[str, Any]], Any],
+    messages: list[dict[str, Any]],
+    *,
+    budget_seconds: float,
+    clock: Callable[[], float],
+) -> AgentRun:
+    """A Converse tool loop: the model calls ``run`` for each tool it wants until it answers,
+    for at most ``MAX_ROUNDS`` rounds and ``budget_seconds``."""
+    deadline = clock() + budget_seconds
+    used: list[str] = []
+    results: list[str] = []
+    calls = 0
+    for _ in range(MAX_ROUNDS):
+        if clock() > deadline:
+            break
+        response = client.converse(
+            modelId=model_id,
+            system=[{"text": system}],
+            messages=messages,
+            toolConfig={"tools": tools},
+            inferenceConfig={"maxTokens": 700, "temperature": 0},
+        )
+        calls += 1
+        message = response["output"]["message"]
+        if response.get("stopReason") != "tool_use":
+            text = "\n".join(b["text"] for b in message.get("content", []) if "text" in b).strip()
+            if response.get("stopReason") not in ("end_turn", "stop_sequence") or not text:
+                break
+            return AgentRun(text, used, results, calls)
+        messages.append({"role": "assistant", "content": message["content"]})
+        replies = []
+        for block in message["content"]:
+            use = block.get("toolUse")
+            if not use:
+                continue
+            used.append(use["name"])
+            try:
+                out = run(use["name"], use.get("input") or {})
+                text, status = json.dumps(out, default=str)[:MAX_RESULT_CHARS], "success"
+                results.append(text)
+            except (GroundtimeError, QlooError) as exc:
+                text, status = json.dumps({"error": str(exc)}), "error"
+            replies.append(
+                {
+                    "toolResult": {
+                        "toolUseId": use["toolUseId"],
+                        "content": [{"text": text}],
+                        "status": status,
+                    }
+                }
+            )
+        messages.append({"role": "user", "content": replies})
+    return AgentRun(None, used, results, calls)

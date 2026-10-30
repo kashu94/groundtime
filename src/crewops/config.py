@@ -114,11 +114,14 @@ class Settings:
     stage: str
     aws_region: str
     concierge_model_id: str
-    """The model the traveller's concierge words its answers with."""
+    """The model the assistant words its answers with."""
     user_pool_id: str | None
     """Cognito pool and app client whose tokens the MCP server accepts. The stack sets
     these on the deployed server, local commands read them from the auth stack."""
     user_pool_client_id: str | None
+    polly_voice: str = "Kajal"
+    """Amazon Polly voice the assistant speaks with: Indian English."""
+    polly_engine: str = "neural"
     qloo_api_url: str = DEFAULT_QLOO_URL
     """Qloo Taste AI API origin. Every call goes from the server, never the browser."""
     qloo_api_key: str | None = None
@@ -185,6 +188,8 @@ class Settings:
             concierge_model_id=_get(env, "CREWOPS_CONCIERGE_MODEL_ID", DEFAULT_CONCIERGE_MODEL),
             user_pool_id=_get(env, "CREWOPS_USER_POOL_ID"),
             user_pool_client_id=_get(env, "CREWOPS_USER_POOL_CLIENT_ID"),
+            polly_voice=_get(env, "CREWOPS_POLLY_VOICE", "Kajal"),
+            polly_engine=_get(env, "CREWOPS_POLLY_ENGINE", "neural"),
             qloo_api_url=_https_url(env, "QLOO_API_URL", DEFAULT_QLOO_URL),
             qloo_api_key=_get(env, "QLOO_API_KEY"),
             qloo_cache_hours=_int(env, "CREWOPS_QLOO_CACHE_HOURS", 24),

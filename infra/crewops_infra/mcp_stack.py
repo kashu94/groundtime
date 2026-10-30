@@ -105,6 +105,8 @@ class McpStack(Stack):
                 "CREWOPS_USER_POOL_ID": auth.user_pool.user_pool_id,
                 "CREWOPS_USER_POOL_CLIENT_ID": auth.client.user_pool_client_id,
                 "CREWOPS_CONCIERGE_MODEL_ID": settings.concierge_model_id,
+                "CREWOPS_POLLY_VOICE": settings.polly_voice,
+                "CREWOPS_POLLY_ENGINE": settings.polly_engine,
             },
         )
 
@@ -118,6 +120,10 @@ class McpStack(Stack):
 
         # The Qloo API key: a SecureString created by hand, read at run time, so it is in no
         # template, environment variable or log. Only this one parameter.
+        # The assistant's answers read aloud. Polly has no resource to scope this to.
+        self.runtime.add_to_role_policy(
+            iam.PolicyStatement(actions=["polly:SynthesizeSpeech"], resources=["*"])
+        )
         self.runtime.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ssm:GetParameter"],

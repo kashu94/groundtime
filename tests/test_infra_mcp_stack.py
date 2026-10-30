@@ -67,8 +67,9 @@ def test_permissions_are_only_what_the_server_needs(template):
     assert "cognito-idp:AdminSetUserPassword" in by_action
     assert {a.split(":")[0] for a in by_action} <= {
         "bedrock", "bedrock-agentcore", "cognito-idp", "dynamodb", "ecr", "logs", "ssm",
-        "cloudwatch", "xray", "s3",
+        "cloudwatch", "xray", "s3", "polly",
     }  # fmt: skip
+    assert by_action["polly:SynthesizeSpeech"] == ["*"]  # Polly has no resource to scope to
     # The Qloo key is read from its one parameter at run time, never set in the environment.
     assert json.dumps(by_action["ssm:GetParameter"]).count("parameter/groundtime-dev/") == 1
     assert "parameter/groundtime-dev/qloo/api-key" in json.dumps(by_action["ssm:GetParameter"])

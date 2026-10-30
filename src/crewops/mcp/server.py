@@ -34,7 +34,7 @@ Groundtime turns a flight delay into time well spent. A traveller books a trip a
 confirm it, shares a few things they love; `my_groundtime` is then their wait (a delay or a
 connection) and a plan for it: places, food and films picked by Qloo for their taste, each
 checked for opening hours, dietary needs and getting to the gate in time. Someone already at
-the airport is never sent out of it. `ask` is the traveller's concierge. Crew get the same
+the airport is never sent out of it. `ask` is the assistant, for every role. Crew get the same
 care on a layover (`my_layover`). Customer care records delays (`record_delay`) and sees
 every waiting passenger's plan (`flight_care`). The tools available depend on the signed-in
 user's role."""
@@ -159,11 +159,20 @@ def build_server(
         return await run(ctx, lambda c: api.my_groundtime(c))
 
     @mcp.tool(annotations=QLOO)
-    async def ask(question: str, ctx: Context) -> dict:
-        """Traveller: ask the Groundtime concierge about your wait in plain words. It plans
-        with the tools above and names nothing they didn't return; if it can't, you get the
-        checked plan written out instead."""
-        return await run(ctx, lambda c: api.ask(c, question))
+    async def ask(
+        question: str,
+        ctx: Context,
+        role: str = "",
+        history: list[dict] | None = None,
+        voice: bool = False,
+    ) -> dict:
+        """Everyone: ask the Groundtime assistant in plain words. It answers as the `role`
+        you hold and choose (traveller, crew, customer_care, admin; your first if empty),
+        with that role's tools, and only about Groundtime, your trips or work, the airlines
+        and air travel. `history` is the last few turns ({"role": "user"|"assistant",
+        "text"}). It names nothing its tools didn't return; if it can't, you get a checked
+        summary instead. With `voice`, the answer also comes back as `audio_mp3` (base64)."""
+        return await run(ctx, lambda c: api.ask(c, question, role, history, voice))
 
     @mcp.tool(annotations=READ)
     async def my_taste(ctx: Context) -> dict:
@@ -260,6 +269,7 @@ def from_environment(host: str = "127.0.0.1") -> FastMCP:
     from crewops.store.taste import TableCache
     from crewops.store.users import get_profile
     from crewops.taste.qloo import client_from_settings
+    from crewops.voice import Voice, polly
 
     settings = Settings.from_env()
     if not (settings.issuer and settings.user_pool_client_id):
@@ -268,6 +278,9 @@ def from_environment(host: str = "127.0.0.1") -> FastMCP:
     session = boto3.Session(region_name=settings.aws_region)
     qloo = client_from_settings(settings, cache=TableCache(table), session=session)
     concierge = GuardedClient(bedrock_runtime(settings.aws_region), MODEL_BREAKER)
+    voice = Voice(
+        polly(settings.aws_region), voice=settings.polly_voice, engine=settings.polly_engine
+    )
     real_time = os.environ.get("CREWOPS_REAL_TIME") == "1"
     api = GroundtimeApi(
         table,
@@ -276,6 +289,7 @@ def from_environment(host: str = "127.0.0.1") -> FastMCP:
         concierge_model=(concierge, settings.concierge_model_id),
         accounts=Accounts(session.client("cognito-idp"), settings.user_pool_id or ""),
         clock=(lambda: datetime.now(UTC)) if real_time else None,
+        voice=voice,
     )
     gate = Gate(
         TokenVerifier(settings.issuer, settings.user_pool_client_id),

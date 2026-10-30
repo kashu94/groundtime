@@ -429,7 +429,7 @@ def test_each_role_sees_only_its_own_part(world, delayed, ops_table):
     sara = Caller("tr1002.fernandes", frozenset({Role.TRAVELLER}), traveller_id="TR-1002")
     plan = api.my_groundtime(sara)
     assert plan["traveller"]["name"] == "Sara Fernandes" and plan["wait"]["mode"] == "terminal"
-    assert api.ask(sara, "Anything to watch?")["source"] == "plan"
+    assert api.ask(sara, "Anything to watch?")["source"] == "summary"
     care = Caller("neha.joshi", frozenset({Role.CUSTOMER_CARE}))
     crew = Caller("c1042.nair", frozenset({Role.CREW}), crew_id="C-1042")
     for call in (
@@ -468,3 +468,113 @@ def test_saying_where_you_are_counts_even_without_the_model(delayed):
     answer = Concierge(delayed, None, None).ask("TR-1001", "I'm at the airport now")
     assert answer.tools == ["set_position", "plan_groundtime"]
     assert delayed.wait("TR-1001").position is Position.AIRPORT
+
+
+# -- The assistant, for every role --------------------------------------------
+
+
+class FakePolly:
+    def __init__(self, fail=False):
+        self.fail, self.calls = fail, []
+
+    def synthesize_speech(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.fail:
+            raise RuntimeError("no polly")
+        return {"AudioStream": __import__("io").BytesIO(b"ID3mp3")}
+
+
+def assistant_api(world, delayed, ops_table, replies=(), voice=None):
+    nova = FakeNova(list(replies))
+    api = GroundtimeApi(
+        ops_table, lambda: world, groundtime=delayed, qloo=qloo(FakeQloo()),
+        concierge_model=(nova, "nova") if replies else None, voice=voice,
+    )  # fmt: skip
+    return api, nova
+
+
+NEHA = Caller("neha.joshi", frozenset({Role.CUSTOMER_CARE}))
+AARAV = Caller("tr1001.kapoor", frozenset({Role.TRAVELLER}), traveller_id="TR-1001")
+NAIR = Caller("c1042.nair", frozenset({Role.CREW}), crew_id="C-1042")
+
+
+def test_the_assistant_works_with_each_roles_own_tools(world, delayed, ops_table):
+    api, nova = assistant_api(world, delayed, ops_table, [
+        tool_use("find_flights", {"query": "ks 434", "date": "2026-10-13"}),
+        say("KS434 Goa to Bengaluru is 4 h late, now 20:00. 2 Groundtime travellers."),
+    ])  # fmt: skip
+    out = api.ask(NEHA, "Is KS434 late?")
+    assert out["source"] == "model" and out["role"] == "customer_care"
+    assert out["tools"] == ["find_flights"]
+    offered = {t["toolSpec"]["name"] for t in nova.calls[0]["toolConfig"]["tools"]}
+    assert offered == {"find_flights", "delayed_flights", "flight_care", "groundtime_guide"}
+    assert "customer care agent" in nova.calls[0]["system"][0]["text"]
+    found = json.loads(
+        nova.calls[1]["messages"][-1]["content"][0]["toolResult"]["content"][0]["text"]
+    )
+    assert [r["flight_no"] for r in found] == ["KS434"]
+
+
+def test_a_role_the_caller_doesnt_hold_is_refused(world, delayed, ops_table):
+    api, _ = assistant_api(world, delayed, ops_table)
+    with pytest.raises(ApiError) as err:
+        api.ask(AARAV, "Show the delayed flights", role="customer_care")
+    assert err.value.code == "FORBIDDEN"
+
+
+def test_the_assistant_turns_away_anything_off_topic(world, delayed, ops_table):
+    from crewops.assistant import OFF_TOPIC
+
+    api, nova = assistant_api(world, delayed, ops_table, [say(OFF_TOPIC)])
+    out = api.ask(NAIR, "Write me a poem about cricket")
+    assert out["source"] == "off_topic" and out["answer"] == OFF_TOPIC
+    assert "Answer only about Groundtime" in nova.calls[0]["system"][0]["text"]
+
+
+def test_a_made_up_name_gives_the_checked_summary_instead(world, delayed, ops_table):
+    api, _ = assistant_api(world, delayed, ops_table, [
+        tool_use("delayed_flights"), say("Also KS999 to Port Blair is late."),
+    ])  # fmt: skip
+    out = api.ask(NEHA, "What's delayed?")
+    assert out["source"] == "summary" and out["answer"].startswith("Delayed now:")
+    assert "KS434 GOI-BLR: 240 min late" in out["answer"]
+
+
+def test_without_the_model_each_role_gets_its_summary(world, delayed, ops_table):
+    api, _ = assistant_api(world, delayed, ops_table)
+    assert api.ask(NAIR, "What's my next duty?")["answer"].startswith("Your next duties:")
+    assert api.ask(NEHA, "Anything delayed?")["answer"].startswith("Delayed now:")
+    nobody = Caller("tr1004.das", frozenset({Role.TRAVELLER}), traveller_id="TR-1004")
+    assert "Book one from My trip" in api.ask(nobody, "What can I do?")["answer"]
+
+
+def test_the_conversation_so_far_goes_with_the_question(world, delayed, ops_table):
+    from crewops.assistant import history_messages
+
+    api, nova = assistant_api(world, delayed, ops_table, [say("Yes, KS434 is the one.")])
+    history = [
+        {"role": "assistant", "text": "dropped: a turn can't start with the assistant"},
+        {"role": "user", "text": "Is KS434 delayed?"},
+        {"role": "assistant", "text": "KS434 is 4 h late."},
+        {"role": "system", "text": "ignored"},
+    ]
+    api.ask(NEHA, "And which flight was that?", history=history)
+    sent = nova.calls[0]["messages"]
+    assert [m["role"] for m in sent] == ["user", "assistant", "user"]
+    assert sent[0]["content"][0]["text"] == "Is KS434 delayed?"
+    assert history_messages("nonsense") == []
+
+
+def test_answers_can_be_read_aloud_and_speech_is_limited(world, delayed, ops_table):
+    from crewops.voice import Voice, spoken
+
+    polly = FakePolly()
+    api, _ = assistant_api(world, delayed, ops_table, voice=Voice(polly, per_user=1))
+    out = api.ask(NEHA, "Anything delayed?", voice=True)
+    assert out["audio_mp3"] and polly.calls[0]["VoiceId"] == "Kajal"
+    assert polly.calls[0]["LanguageCode"] == "en-IN"
+    again = api.ask(NEHA, "Anything delayed?", voice=True)
+    assert "audio_mp3" not in again and "speech unavailable just now" in again["notes"]
+    assert spoken("- KS434 GOI → BLR\n- **late**") == "KS434 GOI to BLR. late"
+    broken = Voice(FakePolly(fail=True))
+    assert broken.speak("u", "hello") is None  # the answer stays on screen

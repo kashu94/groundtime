@@ -8,6 +8,7 @@ needs. Errors are ``ApiError`` with a code the server turns into a tool error.
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 from collections.abc import Callable, Mapping
@@ -15,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from crewops.assistant import Assistant
 from crewops.auth.accounts import AccountError, Accounts, may_reset, new_password
 from crewops.bedrock import MODEL_BREAKER
 from crewops.domain import Caller, Role
@@ -22,12 +24,12 @@ from crewops.ingestion.seed import default_seed_dir
 from crewops.network import Network
 from crewops.store import taste as taste_store
 from crewops.store.users import get_profile, list_profiles
-from crewops.taste.concierge import Concierge
 from crewops.taste.layover import LayoverError, layover_brief, night_stops
 from crewops.taste.profile import ProfileError, TasteProfile
 from crewops.taste.qloo import QlooClient, QlooError
 from crewops.taste.service import Groundtime, GroundtimeError
 from crewops.taste.stations import AIRPORTS, IST
+from crewops.voice import Voice
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +67,7 @@ class GroundtimeApi:
         accounts: Accounts | None = None,
         clock: Callable[[], datetime] | None = None,
         groundtime: Groundtime | None = None,
+        voice: Voice | None = None,
     ) -> None:
         """``network`` gives the flights and crew trips; ``qloo`` turns on the plans;
         ``concierge_model`` is the (Bedrock client, model id) the traveller's agent uses.
@@ -77,6 +80,7 @@ class GroundtimeApi:
         self._concierge_model = concierge_model
         self._groundtime = groundtime
         self._crew_tastes: dict[str, TasteProfile] | None = None
+        self.voice = voice
 
     # ------------------------------------------------------------------
     # Shared
@@ -171,13 +175,27 @@ class GroundtimeApi:
         traveller = self._traveller(caller)
         return self._call(lambda: self.groundtime().my_plan(traveller))
 
-    def ask(self, caller: Caller, question: str) -> dict[str, Any]:
-        """The traveller's concierge."""
-        traveller = self._traveller(caller)
+    def ask(
+        self,
+        caller: Caller,
+        question: str,
+        role: str = "",
+        history: Any = None,
+        voice: bool = False,
+    ) -> dict[str, Any]:
+        """The Groundtime assistant, for the role the caller asks as (the page they are on).
+        With ``voice``, the answer also comes back as MP3 from Polly."""
         client, model_id = self._concierge_model or (None, None)
-        concierge = Concierge(self.groundtime(), client, model_id)
-        answer = self._call(lambda: concierge.ask(traveller, question))
-        return answer.to_dict() | {"models": MODEL_BREAKER.status()}
+        assistant = Assistant(self, client, model_id)
+        answer = self._call(lambda: assistant.ask(caller, question, role=role, history=history))
+        out = answer.to_dict() | {"models": MODEL_BREAKER.status()}
+        if voice:
+            audio = self.voice.speak(caller.user_id, answer.text) if self.voice else None
+            if audio:
+                out["audio_mp3"] = base64.b64encode(audio).decode("ascii")
+            else:
+                out["notes"] = [*out["notes"], "speech unavailable just now"]
+        return out
 
     # -- Taste, for travellers and crew ---------------------------------
 
