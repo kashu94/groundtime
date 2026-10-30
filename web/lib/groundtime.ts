@@ -146,14 +146,29 @@ export type MyTrip =
       care: CareDesk;
     };
 
-export type ConciergeAnswer = {
+export type AssistantRole = "traveller" | "crew" | "customer_care" | "admin";
+
+export type AssistantAnswer = {
   answer: string;
-  /** `model`: the concierge's own words, checked against what the tools returned; `plan`:
-   * the checked plan written out, when the model couldn't answer. */
-  source: "model" | "plan";
+  /** `model`: the assistant's own words, checked against what its tools returned; `summary`:
+   * the checked facts written out, when the model couldn't answer; `off_topic`: not about
+   * Groundtime or air travel. */
+  source: "model" | "summary" | "off_topic";
+  role: AssistantRole;
   tools: string[];
   notes: string[];
+  /** The answer read aloud by Amazon Polly, base64 MP3, when asked for. */
+  audio_mp3?: string;
 };
+
+/** The assistant serves the role of the page it's opened on. */
+export function assistantRoleFor(path: string): AssistantRole | null {
+  if (path.startsWith("/trip")) return "traveller";
+  if (path.startsWith("/crew")) return "crew";
+  if (path.startsWith("/care")) return "customer_care";
+  if (path.startsWith("/admin")) return "admin";
+  return null;
+}
 
 export type DelayChange = { delay_minutes: number; reason: string | null; by: string | null; at_local: string | null };
 

@@ -1,12 +1,12 @@
 "use client";
 
 import { ArrowRight, Heart, Plus, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 
 import { AirlineBadge, airlineOf } from "@/components/airline";
 import { Booking } from "@/components/booking";
 import { CareDesk } from "@/components/care-desk";
-import { Concierge } from "@/components/concierge";
+import { CHANGED } from "@/components/assistant";
 import { useMe } from "@/components/me";
 import { Late, PlanView } from "@/components/plan";
 import { TastePicker } from "@/components/taste";
@@ -70,6 +70,16 @@ function Booked({
     await onChange();
     if (plan) await planMyTime();
   }
+
+  // The assistant moved them ("I'm at the airport"): show the trip and plan as they now are.
+  const onAssistantChange = useEffectEvent(() => {
+    changed();
+  });
+  useEffect(() => {
+    const on = () => onAssistantChange();
+    window.addEventListener(CHANGED, on);
+    return () => window.removeEventListener(CHANGED, on);
+  }, []);
 
   async function move(position: Position) {
     setMoving(true);
@@ -170,7 +180,6 @@ function Booked({
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-4">
-          {w && <Concierge onMoved={changed} />}
           {taste}
           <CareDesk desk={trip.care} />
         </aside>

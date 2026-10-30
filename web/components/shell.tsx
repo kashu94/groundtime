@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { signOut } from "@/lib/client";
 import { homeFor, viewsFor } from "@/lib/roles";
 
+import { Assistant } from "./assistant";
 import { useMe } from "./me";
 import { cx } from "./ui";
 
@@ -24,10 +25,11 @@ export function Shell({ children }: { children: ReactNode }) {
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onMenu={() => setMenu(true)} />
-        <main className="mb-0 flex-1 border-line bg-surface px-4 py-6 sm:px-6 lg:mb-2 lg:mr-2 lg:rounded-2xl lg:border lg:px-8">
+        <main className="mb-0 flex-1 border-line bg-surface px-4 pb-24 pt-6 sm:px-6 lg:mb-2 lg:mr-2 lg:rounded-2xl lg:border lg:px-8">
           {children}
         </main>
       </div>
+      <Assistant />
       {menu && <MenuSheet onClose={() => setMenu(false)} />}
     </div>
   );
