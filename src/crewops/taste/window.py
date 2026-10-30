@@ -1,11 +1,11 @@
-"""The free time a crew really has on a layover, from the roster alone.
+"""The free time a crew really has on a layover, from the crew trip alone.
 
-Legal rest (RULE-REST-04) runs from release to the next report. Little of it is free: the
+Rest runs from release to the next report, at least 12 hours. Little of it is free: the
 crew ride to the hotel and check in, and must be asleep early enough for a full sleep before
 the ride back and the report. What is left is when a meal out fits, if it fits at all. A
 long duty day, or a short window, makes the brief favour somewhere quiet and close.
 
-All of it is arithmetic on roster times; Qloo only ever sees the place and the hour.
+All of it is arithmetic on trip times; Qloo only ever sees the place and the hour.
 """
 
 from __future__ import annotations

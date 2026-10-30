@@ -1,11 +1,10 @@
 """Call the deployed MCP server as a member of the team, the way any MCP host would.
 
-    uv run python -m crewops.mcp.client --as rohit.malhotra ask "Who covers C-1042 on 13 Oct?"
-    uv run python -m crewops.mcp.client --as rohit.malhotra --conversation c1 ask "Captain"
-    uv run python -m crewops.mcp.client --as rohit.malhotra my_queue
-    uv run python -m crewops.mcp.client --as meera.bhatt approve_plan \
-        '{"disruption_id": "r-...", "plan_id": "pl-..."}'
-    uv run python -m crewops.mcp.client --as rohit.malhotra tools          # list the server's tools
+    uv run python -m crewops.mcp.client --as tr1001.kapoor my_trip
+    uv run python -m crewops.mcp.client --as tr1001.kapoor ask "What can I do with the delay?"
+    uv run python -m crewops.mcp.client --as neha.joshi record_delay \
+        '{"flight_id": "KS434-2026-10-30", "delay_minutes": 240, "reason": "Late inbound"}'
+    uv run python -m crewops.mcp.client --as neha.joshi tools        # list the server's tools
 
 Signs in to the team's Cognito pool with the member's username and password (from
 ``CREWOPS_TEAM_PASSWORD`` or asked for), then calls the AgentCore runtime with the access
@@ -71,15 +70,11 @@ async def call(url: str, token: str, tool: str | None, arguments: dict[str, Any]
 
 LIST_TOOLS = frozenset(
     {
-        "my_queue",
-        "delayed_flights",
+        "stations",
+        "find_flights",
         "taste_search",
-        "alert_addresses",
-        "list_crew_tools",
-        "rule_thresholds",
-        "activity_log",
-        "disruptions",
-        "my_reports",
+        "flight_board",
+        "delayed_flights",
         "team_accounts",
     }
 )
@@ -100,10 +95,7 @@ def _parsed(texts: list[str], as_list: bool = False) -> Any:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--as", dest="user", required=True, help="team member's username")
-    parser.add_argument(
-        "--conversation", default="", help="for ask: one id per conversation, for follow-ups"
-    )
+    parser.add_argument("--as", dest="user", required=True, help="the account's username")
     parser.add_argument("tool", help="a tool name, 'ask', or 'tools' to list them")
     parser.add_argument("argument", nargs="?", default=None, help="question, or JSON arguments")
     args = parser.parse_args(argv)
@@ -126,8 +118,6 @@ def main(argv: list[str] | None = None) -> int:
         if not args.argument:
             parser.error("ask needs a question")
         tool, arguments = "ask", {"question": args.argument}
-        if args.conversation:
-            arguments["conversation_id"] = args.conversation
     else:
         tool = args.tool
         try:

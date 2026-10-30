@@ -4,8 +4,8 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from crewops.engine.world import build_world
 from crewops.ingestion.seed import load_seed
+from crewops.network import build_network
 from crewops.store.taste import TableCache, profile_of, profiles_of, save_profile
 from crewops.taste.layover import NightStop, layover_brief, night_stops
 from crewops.taste.profile import ProfileError, TasteProfile
@@ -78,7 +78,7 @@ class FakeQloo:
 
 @pytest.fixture(scope="module")
 def world():
-    return build_world(load_seed())
+    return build_network(load_seed())
 
 
 def qloo(fake):
@@ -192,7 +192,7 @@ def test_the_brief_keeps_only_places_that_suit_the_whole_crew_tonight(world):
     assert fake.queries[1]["filter.tags"] == ["urn:tag:dietary_option:qloo:jain"]
     sent = json.dumps(fake.queries)
     assert not any(crew in sent for crew in stop.crew_ids)
-    # The controller's view hides whose diet is whose; the crew member's own view shows it.
+    # The staff view hides whose diet is whose; the crew member's own view shows it.
     assert "dietary_needed" not in brief.to_dict()
     assert brief.to_dict()["dietary_needs_met"] is True
     assert brief.to_dict(for_crew=True)["dietary_needed"] == ["jain", "vegetarian"]
@@ -258,3 +258,11 @@ def test_profiles_and_the_qloo_cache_live_in_the_table(ops_table):
     assert cache.get("k")["results"]["entities"][0]["name"] == "Late Kitchen"
     now[0] = 1061.0
     assert cache.get("k") is None
+
+
+def test_a_delay_on_the_last_leg_moves_the_evening(world):
+    stop = night_stops(world, pairing_id="P-2291")[0]
+    last = world.pairings["P-2291"].days[0].flight_ids[-1]
+    late = night_stops(world, pairing_id="P-2291", delays={last: 90})[0]
+    assert (late.release_utc - stop.release_utc).total_seconds() == 90 * 60
+    assert late.cause == "delay" and late.duty_hours == stop.duty_hours + 1.5

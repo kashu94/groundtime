@@ -1,19 +1,18 @@
-"""Typed records for one crew operation.
+"""Typed records for the airline network: flights, crew trips (pairings), crew and airlines.
 
 Each record is a frozen dataclass built by ``from_dict``, which validates while parsing and
 names the failing field (``crew.rank: unknown value 'Pilot'``), so nothing downstream sees a
 raw dict or a timestamp string.
 
-Instants are aware UTC datetimes, calendar fields are dates, on-call windows are UTC times,
-and money is whole rupees.
+Instants are aware UTC datetimes and calendar fields are dates.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -44,13 +43,6 @@ class CrewStatus(StrEnum):
     ACTIVE = "active"
     LEAVE = "leave"
     TRAINING = "training"
-
-
-class CertType(StrEnum):
-    LICENCE = "licence"
-    MEDICAL_CLASS1 = "medical_class1"
-    RECURRENT_TRAINING = "recurrent_training"
-    DANGEROUS_GOODS = "dangerous_goods"
 
 
 def _req(d: Mapping[str, Any], key: str, ctx: str) -> Any:
@@ -124,15 +116,6 @@ def parse_date(value: Any, ctx: str = "value") -> date:
         raise DataError(f"{ctx}: expected a YYYY-MM-DD date, got {value!r}") from None
 
 
-def parse_hhmm(value: Any, ctx: str = "value") -> time:
-    if not isinstance(value, str) or not re.fullmatch(r"\d{2}:\d{2}", value):
-        raise DataError(f"{ctx}: expected HH:MM, got {value!r}")
-    try:
-        return time.fromisoformat(value)
-    except ValueError:
-        raise DataError(f"{ctx}: expected HH:MM, got {value!r}") from None
-
-
 def _list(d: Mapping[str, Any], key: str, ctx: str) -> list[Any]:
     value = _req(d, key, ctx)
     if not isinstance(value, list):
@@ -190,119 +173,6 @@ def _flag(d: Mapping[str, Any], key: str, ctx: str) -> bool:
     if not isinstance(value, bool):
         raise DataError(f"{ctx}.{key}: expected true or false, got {value!r}")
     return value
-
-
-@dataclass(frozen=True, slots=True)
-class Certification:
-    crew_id: str
-    cert_type: CertType
-    valid_from: date
-    valid_to: date
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "certification") -> Certification:
-        return cls(
-            crew_id=_str(d, "crew_id", ctx),
-            cert_type=_enum(CertType, d, "cert_type", ctx),
-            valid_from=parse_date(_req(d, "valid_from", ctx), f"{ctx}.valid_from"),
-            valid_to=parse_date(_req(d, "valid_to", ctx), f"{ctx}.valid_to"),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class DailyHours:
-    date: date
-    duty_hours: float
-    flight_hours: float
-
-
-@dataclass(frozen=True, slots=True)
-class DutyClock:
-    """Accrued hours for one crew member up to the snapshot."""
-
-    crew_id: str
-    as_of_utc: datetime
-    duty_hours_7d: float
-    flight_hours_28d: float
-    last_rest_ended: datetime
-    """When their last rest finished, i.e. the earliest they may report again."""
-    daily_history: tuple[DailyHours, ...]
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "duty_clock") -> DutyClock:
-        history = []
-        for i, day in enumerate(_list(d, "daily_history", ctx)):
-            c = f"{ctx}.daily_history[{i}]"
-            history.append(
-                DailyHours(
-                    date=parse_date(_req(day, "date", c), f"{c}.date"),
-                    duty_hours=_float(day, "duty_hours", c),
-                    flight_hours=_float(day, "flight_hours", c),
-                )
-            )
-        return cls(
-            crew_id=_str(d, "crew_id", ctx),
-            as_of_utc=parse_utc(_req(d, "as_of_utc", ctx), f"{ctx}.as_of_utc"),
-            duty_hours_7d=_float(d, "duty_hours_7d", ctx),
-            flight_hours_28d=_float(d, "flight_hours_28d", ctx),
-            last_rest_ended=parse_utc(_req(d, "last_rest_ended", ctx), f"{ctx}.last_rest_ended"),
-            daily_history=tuple(sorted(history, key=lambda h: h.date)),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class ReserveDuty:
-    """Dates a crew member is on call, and the daily window a callout must fall in."""
-
-    crew_id: str
-    base: str
-    dates: tuple[date, ...]
-    window_start: time
-    window_end: time
-
-    def covers(self, when: datetime) -> bool:
-        moment = when.astimezone(UTC)
-        return moment.date() in self.dates and (
-            self.window_start <= moment.time().replace(tzinfo=None) <= self.window_end
-        )
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "reserve") -> ReserveDuty:
-        window = _req(d, "oncall_window_utc", ctx)
-        dates = _list(d, "dates", ctx)
-        start = parse_hhmm(_req(window, "start", f"{ctx}.oncall_window_utc"), f"{ctx}.start")
-        end = parse_hhmm(_req(window, "end", f"{ctx}.oncall_window_utc"), f"{ctx}.end")
-        if end <= start:
-            raise DataError(f"{ctx}.oncall_window_utc: end {end} is not after start {start}")
-        return cls(
-            crew_id=_str(d, "crew_id", ctx),
-            base=_station(d, "base", ctx),
-            dates=tuple(sorted(parse_date(x, f"{ctx}.dates[{i}]") for i, x in enumerate(dates))),
-            window_start=start,
-            window_end=end,
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class RiskSignal:
-    """Supplied forecast. Shown next to an option, never affects legality or rank."""
-
-    crew_id: str
-    as_of_utc: datetime
-    score: float
-    drivers: tuple[str, ...]
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "risk_signal") -> RiskSignal:
-        score = _float(d, "disruption_risk_score", ctx)
-        if score > 1.0:
-            raise DataError(f"{ctx}.disruption_risk_score: must be <= 1.0, got {score}")
-        return cls(
-            crew_id=_str(d, "crew_id", ctx),
-            as_of_utc=parse_utc(_req(d, "as_of_utc", ctx), f"{ctx}.as_of_utc"),
-            score=score,
-            drivers=tuple(str(x) for x in _list(d, "drivers", ctx)),
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -428,121 +298,4 @@ class Pairing:
             aircraft=_str(d, "aircraft", ctx),
             days=tuple(sorted(days, key=lambda day: day.date)),
             crew=tuple(seats),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class RosterException:
-    """A known breach already flagged on the published roster."""
-
-    crew_id: str
-    date: date
-    rule_id: str
-    note: str
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "exception") -> RosterException:
-        return cls(
-            crew_id=_str(d, "crew_id", ctx),
-            date=parse_date(_req(d, "date", ctx), f"{ctx}.date"),
-            rule_id=_str(d, "rule", ctx),
-            note=str(d.get("note") or ""),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class GateSlot:
-    """A boarding gate held for one departure, from boarding start to departure."""
-
-    gate: str
-    pairing_id: str
-    flight_id: str
-    date: date
-    start_utc: datetime
-    end_utc: datetime
-    aircraft_type: AircraftType
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "gate") -> GateSlot:
-        start = parse_utc(_req(d, "boarding_start_time", ctx), f"{ctx}.boarding_start_time")
-        end = parse_utc(_req(d, "boarding_end_time", ctx), f"{ctx}.boarding_end_time")
-        if end <= start:
-            raise DataError(f"{ctx}: boarding end is not after boarding start")
-        return cls(
-            gate=_str(d, "boarding_gate_number", ctx),
-            pairing_id=_str(d, "pairing_id", ctx),
-            flight_id=_str(d, "flight_id", ctx),
-            date=parse_date(_req(d, "date", ctx), f"{ctx}.date"),
-            start_utc=start,
-            end_utc=end,
-            aircraft_type=_enum(AircraftType, d, "aircraft_type", ctx),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class Rule:
-    rule_id: str
-    text: str
-    params: Mapping[str, float] = field(default_factory=dict)
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "rule") -> Rule:
-        params = d.get("params") or {}
-        if not isinstance(params, Mapping):
-            raise DataError(f"{ctx}.params: expected an object")
-        return cls(
-            rule_id=_str(d, "rule_id", ctx),
-            text=_str(d, "text", ctx),
-            params=dict(params),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class CostTable:
-    """Rupee costs of each way to cover a disruption."""
-
-    currency: str
-    reserve_callout_pilot: int
-    reserve_callout_cabin: int
-    dayoff_callout_pilot: int
-    dayoff_callout_cabin: int
-    deadhead_positioning: int
-    delay_per_duty_hour: int
-    cancellation_per_flight: int
-    hotel_overnight: int
-    seniority_allowance_pilot: int = 0
-    """Per year of seniority on a callout, so senior crew cost more to call in."""
-    seniority_allowance_cabin: int = 0
-    travel_per_10_minutes: int = 0
-    """Travel allowance per 10 minutes the crew member needs to reach the airport."""
-
-    def callout(self, rank: Rank, on_reserve: bool) -> int:
-        if on_reserve:
-            return self.reserve_callout_pilot if rank.is_pilot else self.reserve_callout_cabin
-        return self.dayoff_callout_pilot if rank.is_pilot else self.dayoff_callout_cabin
-
-    def seniority_allowance(self, rank: Rank, seniority: int) -> int:
-        per_year = (
-            self.seniority_allowance_pilot if rank.is_pilot else self.seniority_allowance_cabin
-        )
-        return per_year * seniority
-
-    def travel(self, reach_minutes: int) -> int:
-        return self.travel_per_10_minutes * -(-reach_minutes // 10)
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "costs") -> CostTable:
-        return cls(
-            currency=_str(d, "currency", ctx),
-            reserve_callout_pilot=_int(d, "reserve_callout_pilot", ctx),
-            reserve_callout_cabin=_int(d, "reserve_callout_cabin", ctx),
-            dayoff_callout_pilot=_int(d, "dayoff_callout_pilot", ctx),
-            dayoff_callout_cabin=_int(d, "dayoff_callout_cabin", ctx),
-            deadhead_positioning=_int(d, "deadhead_positioning", ctx),
-            delay_per_duty_hour=_int(d, "delay_cost_per_duty_hour", ctx),
-            cancellation_per_flight=_int(d, "cancellation_per_flight", ctx),
-            hotel_overnight=_int(d, "hotel_overnight", ctx),
-            seniority_allowance_pilot=int(d.get("seniority_allowance_pilot", 0)),
-            seniority_allowance_cabin=int(d.get("seniority_allowance_cabin", 0)),
-            travel_per_10_minutes=int(d.get("travel_per_10_minutes", 0)),
         )

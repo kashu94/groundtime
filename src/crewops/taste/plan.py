@@ -1,10 +1,10 @@
 """A traveller's Groundtime plan, live against Qloo, from the command line.
 
-    uv run python -m crewops.taste.plan tr1001.kapoor --delay KS434=240
-    uv run python -m crewops.taste.plan tr1002.fernandes --delay KS434=240 --position airside
+    uv run python -m crewops.taste.plan TR-1001 --delay KS434=240
+    uv run python -m crewops.taste.plan TR-1002 --delay KS434=240 --position airport
 
-Reads the seed week and the demo bookings (``data/team/demo_travellers.json``) and uses the
-seed's own moment, 13 October 13:00 IST when ``--at`` is left out, so it needs the Qloo key
+Reads the network and the demo bookings (``data/team/demo_travellers.json``) and uses the
+seed's own moment, 13 October 13:00 IST, when ``--at`` is left out, so it needs the Qloo key
 (``QLOO_API_KEY`` in ``.env``) and nothing from AWS.
 """
 
@@ -15,8 +15,7 @@ import json
 from datetime import UTC, datetime
 
 from crewops.config import Settings, load_env_file
-from crewops.engine.world import build_world
-from crewops.ingestion.seed import load_seed
+from crewops.network import network
 from crewops.taste.groundtime import ground_wait, plan_groundtime
 from crewops.taste.qloo import MemoryCache, QlooError, client_from_settings
 from crewops.taste.travellers import Position, load_travellers, trip
@@ -26,7 +25,7 @@ SEED_AT = datetime(2026, 10, 13, 7, 30, tzinfo=UTC)
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="A traveller's Groundtime plan")
-    parser.add_argument("username", help="a demo traveller, e.g. tr1001.kapoor")
+    parser.add_argument("traveller", help="a demo traveller's id, e.g. TR-1001")
     parser.add_argument("--delay", action="append", default=[], help="FLIGHT_NO=minutes")
     parser.add_argument("--position", choices=[p.value for p in Position])
     parser.add_argument("--at", help="UTC time, e.g. 2026-10-13T07:30:00Z")
@@ -35,12 +34,12 @@ def main(argv: list[str] | None = None) -> int:
     load_env_file()
 
     travellers = load_travellers()
-    traveller = travellers.get(args.username)
-    if traveller is None:
-        parser.error(f"no demo traveller {args.username}; one of {', '.join(travellers)}")
+    traveller = travellers.get(args.traveller.upper())
+    if traveller is None or not traveller.flight_nos:
+        booked = ", ".join(t for t, v in travellers.items() if v.flight_nos)
+        parser.error(f"no booked demo traveller {args.traveller}; one of {booked}")
     now = datetime.fromisoformat(args.at.replace("Z", "+00:00")) if args.at else SEED_AT
-    world = build_world(load_seed())
-    legs = trip(world.flights, traveller.flight_nos, now)
+    legs = trip(network().flights, traveller.flight_nos, now)
     delays = {}
     for spec in args.delay:
         number, _, minutes = spec.partition("=")
@@ -62,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(out, indent=2))
         return 0
     w = out["wait"]
-    print(f"{traveller.name}: {w['flight_no']} to {w['to']}, {w['delay_minutes']} min late")
+    print(f"{traveller.name}: {w['headline']}")
     print(f"  {w['position']}, {w['mode']} plan; gate by {w['at_gate_by_local'][11:]}")
     if w["stay_reason"]:
         print(f"  {w['stay_reason']}")
@@ -75,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {when:11} {s['name']}  ({'; '.join(s['why'])})")
     if out["back_at_terminal_local"]:
         print(
-            f"  back at the terminal {out['back_at_terminal_local'][11:]}, "
+            f"  at the terminal {out['back_at_terminal_local'][11:]}, "
             f"needed by {w['at_terminal_by_local'][11:]}"
         )
     for x in out["watch"]:

@@ -1,1 +1,1 @@
-"""Seed loading, roster uploads and the live report worker."""
+"""Loading the network's seed week."""

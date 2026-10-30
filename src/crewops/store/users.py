@@ -1,5 +1,6 @@
-"""User profiles: the access facts Cognito does not hold (a crew member's own crew id, a
-controller's desk), written only by the team command and read on every request."""
+"""User profiles: what Cognito does not hold about an account (the crew record a crew login
+is, the passenger record a traveller login is), written only by the team command and read
+on every request."""
 
 from __future__ import annotations
 
@@ -16,7 +17,11 @@ def profile_key(username: str) -> dict[str, str]:
 
 
 def profile_item(
-    username: str, name: str, roles: list[str], crew_id: str | None, desk: str | None
+    username: str,
+    name: str,
+    roles: list[str],
+    crew_id: str | None = None,
+    traveller_id: str | None = None,
 ) -> dict[str, Any]:
     item: dict[str, Any] = {
         **profile_key(username),
@@ -27,8 +32,8 @@ def profile_item(
     }
     if crew_id:
         item["crew_id"] = crew_id
-    if desk:
-        item["desk"] = desk
+    if traveller_id:
+        item["traveller_id"] = traveller_id
     return item
 
 
@@ -45,8 +50,7 @@ def delete_profile(table: Any, username: str) -> None:
 
 
 def list_profiles(table: Any) -> list[dict[str, Any]]:
-    """Filtered scan. Fine at this size: the team is small and only the team command calls
-    this."""
+    """Filtered scan. Fine at this size: the team is small and only admins call this."""
     from boto3.dynamodb.conditions import Attr
 
     out: list[dict[str, Any]] = []

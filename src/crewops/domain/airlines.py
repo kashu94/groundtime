@@ -1,12 +1,7 @@
-"""The airlines crew control works for, and the stations' emergency gates.
+"""The airlines flying the network.
 
-Three fictional airlines share the operations centre, and controllers work across all of
-them. Each owns its aircraft, its flight numbers (airline code plus three digits) and its
-crew. Cover only ever comes from the same airline, since crew are employed, trained and
-paid by one.
-
-Each station holds emergency gates back for disruptions. A departure goes to one when every
-ordinary gate is taken, before falling back to a remote stand.
+Three fictional Indian airlines, each with its own aircraft, flight numbers (airline code
+plus three digits) and crew.
 """
 
 from __future__ import annotations
@@ -16,10 +11,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from crewops.domain.models import STATION_RE, DataError, _list, _str
+from crewops.domain.models import DataError, _list, _str
 
 AIRLINE_CODE_RE = re.compile(r"^[A-Z]{2}$")
-EMERGENCY_GATE_RE = re.compile(r"^[A-Z]{3}-E\d{1,2}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,24 +39,4 @@ class Airline:
         )
 
 
-@dataclass(frozen=True, slots=True)
-class EmergencyGate:
-    gate: str
-    station: str
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any], ctx: str = "emergency_gate") -> EmergencyGate:
-        gate, station = _str(d, "gate", ctx), _str(d, "station", ctx)
-        if not EMERGENCY_GATE_RE.match(gate):
-            raise DataError(f"{ctx}.gate: like BLR-E1, got {gate!r}")
-        if not STATION_RE.match(station) or not gate.startswith(f"{station}-"):
-            raise DataError(f"{ctx}.station: the gate's own station, got {station!r}")
-        return cls(gate=gate, station=station)
-
-
-__all__ = [
-    "AIRLINE_CODE_RE",
-    "EMERGENCY_GATE_RE",
-    "Airline",
-    "EmergencyGate",
-]
+__all__ = ["AIRLINE_CODE_RE", "Airline"]

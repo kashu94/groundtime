@@ -1,9 +1,10 @@
-"""A crew member's taste profile: up to five things they love and what they can eat.
+"""A traveller's or crew member's taste profile: up to five things they love, what they can
+eat, and, for crew, how they like to unwind.
 
-Opt-in and theirs alone. A crew member picks the things (an artist, a film, a book, a cuisine)
-from Qloo's own catalogue, so each pick is a Qloo id, never free text. Controllers never see
-whose picks are whose: a layover brief says only how many of the crew shared their taste and
-that the pick meets everyone's dietary needs.
+Opt-in and theirs alone. Each pick (an artist, a film, a book, a cuisine) comes from Qloo's
+own catalogue, so it is a Qloo id, never free text. Nobody else sees whose picks are whose:
+customer care sees only that a plan meets everyone's dietary needs. ``crew_id`` holds the
+owner's id, a crew id or a traveller id.
 """
 
 from __future__ import annotations

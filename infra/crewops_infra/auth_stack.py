@@ -1,13 +1,13 @@
 """Sign-in: a Cognito user pool with one group per role.
 
 Nobody signs themselves up. An admin (here, the team command) creates every account, so the
-pool holds exactly the people the operation knows about. Users sign in with a username; no
+pool holds exactly the people Groundtime knows about. Users sign in with a username; no
 email or phone is stored, and nothing is ever sent. A forgotten password is reset by an
 admin.
 
-Roles are the groups, which only an admin can change. What else decides access (a crew
-member's own crew id, a controller's desk) is kept out of Cognito altogether, in a user
-profile in the operations table that only the team command writes: a Cognito attribute is,
+Roles are the groups, which only an admin can change. What else decides access (the crew or
+passenger record a login stands for) is kept out of Cognito altogether, in a user profile
+in the operations table that only the team command writes: a Cognito attribute is,
 by default, something users can edit about themselves. The app client can read the display
 name and write only the user's locale.
 
@@ -24,18 +24,7 @@ from crewops.config import Settings
 from crewops.domain import Role
 from crewops_infra.data_stack import DISPOSABLE_STAGES
 
-GROUP_ORDER = (
-    Role.SUPER_ADMIN,
-    Role.ADMIN,
-    Role.APPROVER,
-    Role.CONTROLLER,
-    Role.AUDITOR,
-    Role.REPORTER,
-    Role.CUSTOMER_CARE,
-    Role.CREW,
-    Role.TRAVELLER,
-    Role.SPEAKER,
-)
+GROUP_ORDER = (Role.ADMIN, Role.CUSTOMER_CARE, Role.CREW, Role.TRAVELLER)
 """Cognito group precedence, highest first. Roles add up in the application; the order only
 decides which group's IAM role Cognito would hand out, and none is set."""
 

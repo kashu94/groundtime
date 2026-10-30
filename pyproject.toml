@@ -1,7 +1,7 @@
 [project]
 name = "groundtime"
 version = "0.1.0"
-description = "Groundtime: turns a delay or a long connection into time well spent for passengers and crew, with Qloo Taste AI choosing and a rules engine checking; crew control on AWS (Bedrock, AgentCore, DynamoDB, S3 Vectors) and the Model Context Protocol."
+description = "Groundtime: when a flight is delayed, plans each passenger's and crew member's wait with Qloo Taste AI, every pick checked for opening hours, dietary needs and getting to the gate in time. Next.js on Amplify, an MCP server on Bedrock AgentCore, Amazon Nova, DynamoDB and Cognito."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"

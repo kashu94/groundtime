@@ -4,7 +4,7 @@
 
 AgentCore runs code packages on Linux ARM64 and does not install dependencies, so the
 package carries them: the server's locked dependencies as ARM64 (aarch64 manylinux) wheels,
-this repository's ``crewops`` code, the example questions the router learns from, and a
+this repository's ``crewops`` code, the network's seed week and the demo passengers, and a
 ``main.py`` that starts the server. The result goes to ``build/mcp_server``, which the MCP
 stack deploys. Run it again after changing the code; the stack redeploys when the package's
 contents change.
@@ -93,10 +93,12 @@ def build(out: Path = OUT) -> Path:
         out / "crewops",
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
-    (out / "data" / "eval").mkdir(parents=True)
-    shutil.copy2(ROOT / "data" / "eval" / "questions.json", out / "data" / "eval")
+    shutil.copytree(
+        ROOT / "data" / "seed", out / "data" / "seed", ignore=shutil.ignore_patterns("*.md")
+    )
     (out / "data" / "team").mkdir(parents=True)
-    shutil.copy2(ROOT / "data" / "team" / "demo_travellers.json", out / "data" / "team")
+    for name in ("demo_travellers.json", "demo_tastes.json"):
+        shutil.copy2(ROOT / "data" / "team" / name, out / "data" / "team")
     (out / "main.py").write_text(MAIN, encoding="utf-8")
     _tidy(out)
     size = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())

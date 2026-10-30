@@ -4,9 +4,9 @@
     TRAVELLER#id / TASTE       the same, for a passenger (ids TR-...)
     QLOO / <request hash>      body (zlib JSON), expires_at
 
-A profile is written only by its crew member, through the server. The cache holds Qloo's
-answers for a day so the same night stop, asked about by the crew and the controller, costs
-one Qloo call; DynamoDB deletes each entry when it expires.
+A profile is written only by its owner, through the server. The cache holds Qloo's
+answers for a day so the same airport, asked about by every passenger on a delayed flight,
+costs one Qloo call; DynamoDB deletes each entry when it expires.
 """
 
 from __future__ import annotations
@@ -18,8 +18,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
-from crewops.store import schema
-from crewops.store.items import from_dynamo
+from crewops.store import from_dynamo, schema
 from crewops.store.schema import SEPARATOR as S
 from crewops.taste.profile import TasteProfile
 

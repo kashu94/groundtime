@@ -1,7 +1,7 @@
 """The Groundtime concierge: a traveller's questions, answered by an agent with Qloo tools.
 
 Nova decides what to look up, through tools that only ever return checked facts: the
-traveller's wait from the schedule and the reported delays, the plan (Qloo's picks after
+traveller's wait from their booking and the recorded delays, the plan (Qloo's picks after
 every check in ``crewops.taste.groundtime``), films and series that fit a given number of
 minutes, and Qloo's catalogue for "something like ...". The model words the answer; it never
 picks a place itself.
@@ -35,10 +35,11 @@ long connection. Answer the signed-in traveller about their own trip only.
 Rules:
 - Every place, film, series and time you mention must come from a tool result. Never add
   one of your own, and never change a time.
-- If the traveller is past security (position airside), never suggest leaving the airport.
-- Always give the time to be back at the terminal door (city plan) or at the gate.
-- If they say where they are (at home, at the terminal before security, past security), pass
-  that position to the tools.
+- If the traveller is at the airport or connecting, never suggest leaving it: Indian airports
+  only let a passenger back out of the departure terminal with clearance.
+- Always give the time to be at the terminal door (plan on the way in) or at the gate.
+- If they say where they are now ("I'm at the airport", "still at the hotel"), call
+  set_position first, then plan.
 - Be brief: a few short lines, the plan in order, times in 24-hour local time.
 - Questions about anything other than their wait and their trip: say you can only help with
   their time before the flight."""
@@ -48,10 +49,8 @@ TOOLS: list[dict[str, Any]] = [
         "toolSpec": {
             "name": "my_wait",
             "description": "The traveller's current wait: flight, delay, where they are, "
-            "whether they may leave the airport, and the times to be at the terminal and gate.",
-            "inputSchema": {"json": {"type": "object", "properties": {
-                "position": {"type": "string", "enum": ["away", "landside", "airside"]},
-            }}},
+            "whether an outing is possible, and the times to be at the terminal and gate.",
+            "inputSchema": {"json": {"type": "object", "properties": {}}},
         }
     },
     {
@@ -59,10 +58,18 @@ TOOLS: list[dict[str, Any]] = [
             "name": "plan_groundtime",
             "description": "The checked plan for the wait: stops chosen by Qloo for the "
             "traveller's taste and verified for opening hours, dietary needs and getting "
-            "back in time, plus a film and a series that fit.",
+            "to the terminal in time, plus a film and a series that fit.",
+            "inputSchema": {"json": {"type": "object", "properties": {}}},
+        }
+    },
+    {
+        "toolSpec": {
+            "name": "set_position",
+            "description": "Record where the traveller is now: away (not at the airport yet) "
+            "or airport (already there, or connecting).",
             "inputSchema": {"json": {"type": "object", "properties": {
-                "position": {"type": "string", "enum": ["away", "landside", "airside"]},
-            }}},
+                "position": {"type": "string", "enum": ["away", "airport"]},
+            }, "required": ["position"]}},
         }
     },
     {
@@ -118,13 +125,8 @@ class ConciergeAnswer:
 def write_out(plan: GroundPlan) -> str:
     """The plan as plain sentences, from the checked facts alone."""
     w = plan.wait
-    lines = []
-    late = f", now {w.delay_minutes} min late" if w.delay_minutes else ""
-    lines.append(
-        f"{w.flight.flight_no} to {w.flight.arr_station}{late}: "
-        f"be at the gate by {w.at_gate_by:%H:%M}."
-    )
-    if w.stay_reason:
+    lines = [w.headline]
+    if w.stay_reason and w.position.value == "away":
         lines.append(w.stay_reason)
     for s in plan.stops:
         if s.kind == "terminal":
@@ -136,8 +138,8 @@ def write_out(plan: GroundPlan) -> str:
             )
     if plan.head_back_by and plan.back_at_terminal:
         lines.append(
-            f"Head back by {plan.head_back_by:%H:%M}; you'll be at the terminal by "
-            f"{plan.back_at_terminal:%H:%M} (needed by {w.at_terminal_by:%H:%M})."
+            f"Leave for the airport by {plan.head_back_by:%H:%M}; you'll be at the terminal "
+            f"by {plan.back_at_terminal:%H:%M} (needed by {w.at_terminal_by:%H:%M})."
         )
     for x in plan.watch:
         length = f"{x.minutes} min" if x.kind == "film" else f"{x.minutes}-min episodes"
@@ -187,21 +189,21 @@ class Concierge:
         self.budget_seconds = budget_seconds
         self.clock = clock
 
-    def _run(self, username: str, name: str, args: dict[str, Any]) -> Any:
+    def _run(self, traveller: str, name: str, args: dict[str, Any]) -> Any:
         gt = self.groundtime
-        traveller = gt.traveller(username)
-        position = args.get("position") or None
         if name == "my_wait":
-            return gt.wait(traveller, position).to_dict()
+            return gt.wait(traveller).to_dict()
         if name == "plan_groundtime":
-            return gt.plan(traveller, position).to_dict(for_traveller=True)
+            return gt.plan(traveller).to_dict(for_traveller=True)
+        if name == "set_position":
+            return gt.set_position(traveller, str(args.get("position") or ""))
         if name == "search_catalogue":
             return gt.search(str(args.get("query") or ""), str(args.get("kind") or ""))
         if name == "find_to_watch":
             return self._watch(traveller, args)
         raise GroundtimeError("INVALID", f"no tool {name}")
 
-    def _watch(self, traveller: Any, args: dict[str, Any]) -> list[dict[str, Any]]:
+    def _watch(self, traveller: str, args: dict[str, Any]) -> list[dict[str, Any]]:
         kind = args.get("kind")
         if kind not in KINDS:
             raise GroundtimeError("INVALID", "kind is film or series")
@@ -234,24 +236,25 @@ class Concierge:
             )
         return out[:5]
 
-    def ask(self, username: str, question: str) -> ConciergeAnswer:
+    def ask(self, traveller: str, question: str) -> ConciergeAnswer:
+        """``traveller`` is the signed-in traveller's id."""
         question = (question or "").strip()[:500]
         if not question:
             raise GroundtimeError("INVALID", "ask a question")
         if self.client is None or not self.model_id:
-            return self._written_out(username, "no model configured")
+            return self._written_out(traveller, "no model configured")
         try:
-            return self._agent(username, question)
+            return self._agent(traveller, question)
         except GroundtimeError:
             raise
         except Exception as exc:  # the model service; the checked plan still answers
-            return self._written_out(username, f"model unavailable: {type(exc).__name__}")
+            return self._written_out(traveller, f"model unavailable: {type(exc).__name__}")
 
-    def _written_out(self, username: str, why: str) -> ConciergeAnswer:
-        plan = self.groundtime.plan(self.groundtime.traveller(username))
+    def _written_out(self, traveller: str, why: str) -> ConciergeAnswer:
+        plan = self.groundtime.plan(traveller)
         return ConciergeAnswer(write_out(plan), "plan", ["plan_groundtime"], 0, [why])
 
-    def _agent(self, username: str, question: str) -> ConciergeAnswer:
+    def _agent(self, traveller: str, question: str) -> ConciergeAnswer:
         deadline = self.clock() + self.budget_seconds
         messages: list[dict[str, Any]] = [{"role": "user", "content": [{"text": question}]}]
         used: list[str] = []
@@ -277,7 +280,7 @@ class Concierge:
                     break
                 unknown = grounded(text, results, question)
                 if unknown:
-                    answer = self._written_out(username, "model named " + ", ".join(unknown[:3]))
+                    answer = self._written_out(traveller, "model named " + ", ".join(unknown[:3]))
                     answer.tools = used + answer.tools
                     answer.model_calls = calls
                     return answer
@@ -290,7 +293,7 @@ class Concierge:
                     continue
                 used.append(use["name"])
                 try:
-                    out = self._run(username, use["name"], use.get("input") or {})
+                    out = self._run(traveller, use["name"], use.get("input") or {})
                     text, status = json.dumps(out, default=str)[:MAX_RESULT_CHARS], "success"
                     results.append(text)
                 except (GroundtimeError, QlooError) as exc:
@@ -305,7 +308,7 @@ class Concierge:
                     }
                 )
             messages.append({"role": "user", "content": replies})
-        answer = self._written_out(username, "the agent ran out of time")
+        answer = self._written_out(traveller, "the agent ran out of time")
         answer.tools = used + answer.tools
         answer.model_calls = calls
         return answer

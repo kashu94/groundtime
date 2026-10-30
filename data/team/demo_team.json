@@ -1,17 +1,7 @@
 {
-  "note": "The demo team, and the demo passengers (their bookings are in demo_travellers.json). Usernames and roles only: no email, phone or password is stored here. Crew members are linked to their roster records by crew id; controllers to their desk.",
+  "note": "The demo sign-ins. Usernames and roles only: no email, phone or password is stored here. Crew are linked to their crew record by crew id, travellers to their passenger record by traveller id (bookings in demo_travellers.json).",
   "members": [
-    {"username": "ananya.iyer", "name": "Ananya Iyer", "roles": ["controller"], "desk": "desk-1"},
-    {"username": "rohit.malhotra", "name": "Rohit Malhotra", "roles": ["controller"], "desk": "desk-2"},
-    {"username": "divya.rao", "name": "Divya Rao", "roles": ["controller"], "desk": "desk-3"},
-    {"username": "meera.bhatt", "name": "Meera Bhatt", "roles": ["approver"]},
-    {"username": "karan.mehta", "name": "Karan Mehta", "roles": ["approver"]},
-    {"username": "farah.qureshi", "name": "Farah Qureshi", "roles": ["approver"]},
-    {"username": "imran.sheikh", "name": "Imran Sheikh", "roles": ["reporter"]},
-    {"username": "lakshmi.hegde", "name": "Lakshmi Hegde", "roles": ["reporter"]},
-    {"username": "nikhil.agarwal", "name": "Nikhil Agarwal", "roles": ["auditor"]},
     {"username": "priya.desai", "name": "Priya Desai", "roles": ["admin"]},
-    {"username": "vikram.saxena", "name": "Vikram Saxena", "roles": ["super_admin"]},
     {"username": "c1042.nair", "name": "A. Nair", "roles": ["crew"], "crew_id": "C-1042"},
     {"username": "c3310.reddy", "name": "D. Reddy", "roles": ["crew"], "crew_id": "C-3310"},
     {"username": "c5417.krishnan", "name": "S. Krishnan", "roles": ["crew"], "crew_id": "C-5417"},
@@ -24,10 +14,9 @@
     {"username": "c3231.verma", "name": "L. Verma", "roles": ["crew"], "crew_id": "C-3231"},
     {"username": "c1313.chandra", "name": "K. Chandra", "roles": ["crew"], "crew_id": "C-1313"},
     {"username": "neha.joshi", "name": "Neha Joshi", "roles": ["customer_care"]},
-    {"username": "tr1001.kapoor", "name": "Aarav Kapoor", "roles": ["traveller"]},
-    {"username": "tr1002.fernandes", "name": "Sara Fernandes", "roles": ["traveller"]},
-    {"username": "tr1003.shah", "name": "Meher Shah", "roles": ["traveller"]},
-    {"username": "tr1004.das", "name": "Rahul Das", "roles": ["traveller"]},
-    {"username": "ops.speaker", "name": "Ops Room Speaker", "roles": ["speaker"]}
+    {"username": "tr1001.kapoor", "name": "Aarav Kapoor", "roles": ["traveller"], "traveller_id": "TR-1001"},
+    {"username": "tr1002.fernandes", "name": "Sara Fernandes", "roles": ["traveller"], "traveller_id": "TR-1002"},
+    {"username": "tr1003.shah", "name": "Meher Shah", "roles": ["traveller"], "traveller_id": "TR-1003"},
+    {"username": "tr1004.das", "name": "Rahul Das", "roles": ["traveller"], "traveller_id": "TR-1004"}
   ]
 }

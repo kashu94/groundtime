@@ -1,13 +1,12 @@
 """Layover care: where a crew on a night stop can eat tonight, chosen for them.
 
 A night stop is a duty day that ends away from where the next one starts from home: the crew
-sleeps at an outstation. Rostered night stops come from the pairings; a disruption makes
-more (a delay that pushes release late, a reserve positioned to an outstation) and builds
-its ``NightStop`` directly.
+sleeps at an outstation. Night stops come from the pairings; a delay recorded on the day's
+last flight pushes the release, and so the whole evening, later.
 
 The brief has three sources and keeps them apart:
 
-* the roster gives the window (``crewops.taste.window``): when the crew is free and when they
+* the crew trip gives the window (``crewops.taste.window``): when the crew is free and when they
   must be asleep;
 * Qloo gives the places near the crew hotel, ranked by taste affinity to what this crew loves
   (the Insights API with the crew's picks as signals), plus a second list filtered to the
@@ -16,7 +15,7 @@ The brief has three sources and keeps them apart:
   dietary option someone in the crew needs, not loud after a tiring day, not airside, and
   within reach. Every pick says why, every rejection is counted.
 
-No model is involved, so the same roster and the same Qloo answer always give the same brief.
+No model is involved, so the same trip and the same Qloo answer always give the same brief.
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from crewops.taste.profile import DIETARY, TasteProfile
@@ -39,6 +38,8 @@ MAX_SIGNALS = 10
 """Loves sent to Qloo at most, for one crew. More dilutes the signal."""
 TAKE = 15
 PICKS = 3
+MIN_REST_HOURS = 12.0
+"""Minimum rest between release and the next report."""
 TIRED_RADIUS_M = 1500
 
 
@@ -53,7 +54,7 @@ class NightStop:
     crew_ids: tuple[str, ...]
     duty_hours: float | None = None
     cause: str = "rostered"
-    """``rostered``, or the disruption that made the stop (``delay``, ``positioning``, ...)."""
+    """``rostered``, or ``delay`` when a recorded delay moved the release."""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,37 +70,44 @@ class NightStop:
 
 
 def night_stops(
-    world: Any,
+    network: Any,
     *,
     pairing_id: str | None = None,
     crew_id: str | None = None,
     on: date | None = None,
+    delays: Mapping[str, int] | None = None,
 ) -> list[NightStop]:
-    """Rostered night stops, optionally for one pairing, one crew member or one date."""
+    """Rostered night stops, optionally for one pairing, one crew member or one date. A delay
+    recorded on the day's last leg moves the release with it, so the rest starts later."""
+    delays = delays or {}
     out: list[NightStop] = []
-    pairings = [world.pairing(pairing_id)] if pairing_id else list(world.pairings.values())
+    if pairing_id:
+        pairings = [network.pairings[pairing_id]] if pairing_id in network.pairings else []
+    else:
+        pairings = list(network.pairings.values())
     for pairing in pairings:
         crew = tuple(seat.crew_id for seat in pairing.crew)
         if crew_id and crew_id not in crew:
             continue
         days = pairing.days
-        duty = {d.date: d for d in world.duty_days.get(pairing.pairing_id, ())}
         for today, tomorrow in zip(days, days[1:], strict=False):
             if on and today.date != on:
                 continue
-            last = world.flights.get(today.flight_ids[-1])
-            if last is None or last.flight_id in world.cancelled:
+            last = network.flights.get(today.flight_ids[-1])
+            if last is None:
                 continue
-            fdp = duty[today.date].fdp_hours if today.date in duty else None
+            late = timedelta(minutes=delays.get(last.flight_id, 0))
+            release = today.release_utc + late
             out.append(
                 NightStop(
                     pairing_id=pairing.pairing_id,
                     date=today.date,
                     station=last.arr_station,
-                    release_utc=today.release_utc,
+                    release_utc=release,
                     next_report_utc=tomorrow.report_utc,
                     crew_ids=crew,
-                    duty_hours=fdp,
+                    duty_hours=round((release - today.report_utc).total_seconds() / 3600, 2),
+                    cause="delay" if late else "rostered",
                 )
             )
     return sorted(out, key=lambda s: (s.release_utc, s.pairing_id))
@@ -134,7 +142,7 @@ class LayoverBrief:
 
     def to_dict(self, *, for_crew: bool = False) -> dict[str, Any]:
         """``for_crew`` is the crew member's own view and may name their dietary needs. The
-        controller's view only says the needs are all met, so no one's diet is shown."""
+        staff view only says the needs are all met, so no one's diet is shown."""
         out = {
             "night_stop": self.stop.to_dict(),
             "window": self.window.to_dict(),
@@ -250,7 +258,7 @@ def layover_brief(
     profiles: Mapping[str, TasteProfile],
     qloo: QlooClient,
     *,
-    min_rest_hours: float,
+    min_rest_hours: float = MIN_REST_HOURS,
 ) -> LayoverBrief:
     """The brief for ``stop``. ``profiles`` holds the taste profiles of whichever of its crew
     have one; for a crew member's own brief, pass only theirs."""
@@ -340,7 +348,10 @@ def layover_brief(
             "station duty manager for a late kitchen."
         )
     elif not window.legal_rest:
-        note = "This rest is shorter than the legal minimum: the trip needs a controller."
+        note = (
+            "This rest is shorter than the 12-hour minimum: tell crew scheduling before you "
+            "plan anything."
+        )
     return LayoverBrief(
         picks=picks,
         considered=len(venues),

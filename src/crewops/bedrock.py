@@ -1,19 +1,14 @@
-"""A circuit breaker in front of Bedrock: stop waiting on a model service that is down.
+"""Bedrock for the concierge: a client with a firm timeout, behind a circuit breaker.
 
-Every model call already has a firm timeout and a deterministic fallback, so a failure
-never costs an answer. But while Bedrock is failing (a regional outage, throttling, a
-network drop), each question would still wait out its timeout first, up to ten seconds
-or more, when a voice answer has eight. So after ``threshold`` failures in a row the
-breaker opens: model calls fail at once for ``cooldown`` seconds and every answer comes
-straight from the roster in DynamoDB through the templates. Then one call is let through
-(half open): success closes the breaker, failure opens it again.
+The concierge's model only words a plan the engine has already made, and every answer has a
+written-out fallback, so a model failure never costs a traveller their plan. But while
+Bedrock is failing (a regional outage, throttling, a network drop) each question would still
+wait out its timeout first. So after ``threshold`` failures in a row the breaker opens: model
+calls fail at once for ``cooldown`` seconds and the plan is written out without a model. Then
+one call is let through (half open): success closes the breaker, failure opens it again.
 
-Only an unavailable service counts: timeouts, lost connections, throttling and 5xx
-errors. A request the service refuses as invalid is our fault, not an outage, and passes
-through without tripping anything.
-
-One breaker serves the whole process (``MODEL_BREAKER``), so it remembers across the
-periodic rebuilds of the pipeline.
+Only an unavailable service counts: timeouts, lost connections, throttling and 5xx errors. A
+request the service refuses as invalid is our fault, not an outage, and trips nothing.
 """
 
 from __future__ import annotations
@@ -36,7 +31,7 @@ OUTAGE_CODES = frozenset(
         "RequestTimeout",
     }
 )
-GUARDED_METHODS = ("converse", "invoke_model", "apply_guardrail")
+GUARDED_METHODS = ("converse",)
 
 
 class CircuitOpen(Exception):
@@ -148,3 +143,19 @@ class GuardedClient:
 
 MODEL_BREAKER = CircuitBreaker()
 """The process's one breaker for Bedrock."""
+
+
+def bedrock_runtime(region: str, read_timeout: float = 15.0) -> Any:
+    """Firm timeout, no retry: the plan is there without the model, so nobody waits long."""
+    import boto3
+    from botocore.config import Config
+
+    return boto3.client(
+        "bedrock-runtime",
+        region_name=region,
+        config=Config(
+            connect_timeout=5,
+            read_timeout=read_timeout,
+            retries={"max_attempts": 1, "mode": "standard"},
+        ),
+    )

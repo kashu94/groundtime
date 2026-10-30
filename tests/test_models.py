@@ -1,19 +1,15 @@
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime
 
 import pytest
 
 from crewops.domain import (
     AircraftType,
-    CostTable,
     Crew,
     CrewStatus,
     DataError,
     Flight,
     Pairing,
     Rank,
-    ReserveDuty,
-    RiskSignal,
-    parse_hhmm,
     parse_utc,
 )
 
@@ -122,68 +118,3 @@ def test_pairing_days_sorted_and_helpers():
 def test_pairing_needs_days():
     with pytest.raises(DataError, match="at least one day"):
         Pairing.from_dict({"pairing_id": "P-1", "aircraft": "X", "days": [], "crew": []})
-
-
-def test_reserve_window_covers_report_inside_window_only():
-    r = ReserveDuty.from_dict(
-        {
-            "crew_id": "C-3310",
-            "base": "BLR",
-            "dates": ["2026-10-13"],
-            "oncall_window_utc": {"start": "06:00", "end": "18:00"},
-        }
-    )
-    assert r.window_start == time(6, 0)
-    assert r.covers(datetime(2026, 10, 13, 6, 0, tzinfo=UTC))
-    assert r.covers(datetime(2026, 10, 13, 18, 0, tzinfo=UTC))
-    assert not r.covers(datetime(2026, 10, 13, 5, 59, tzinfo=UTC))
-    assert not r.covers(datetime(2026, 10, 14, 9, 0, tzinfo=UTC))
-
-
-def test_reserve_window_must_be_ordered():
-    with pytest.raises(DataError, match="not after start"):
-        ReserveDuty.from_dict(
-            {
-                "crew_id": "C-1",
-                "base": "BLR",
-                "dates": [],
-                "oncall_window_utc": {"start": "18:00", "end": "06:00"},
-            }
-        )
-
-
-def test_bad_clock_time_is_rejected():
-    with pytest.raises(DataError, match="HH:MM"):
-        parse_hhmm("6am")
-
-
-def test_risk_score_bounded():
-    with pytest.raises(DataError, match="<= 1.0"):
-        RiskSignal.from_dict(
-            {
-                "crew_id": "C-1",
-                "as_of_utc": "2026-10-12T18:00:00Z",
-                "disruption_risk_score": 1.5,
-                "drivers": [],
-            }
-        )
-
-
-def test_callout_cost_by_rank_and_source():
-    costs = CostTable.from_dict(
-        {
-            "currency": "INR",
-            "reserve_callout_pilot": 18500,
-            "reserve_callout_cabin": 9500,
-            "dayoff_callout_pilot": 24000,
-            "dayoff_callout_cabin": 12500,
-            "deadhead_positioning": 6500,
-            "delay_cost_per_duty_hour": 5400,
-            "cancellation_per_flight": 250000,
-            "hotel_overnight": 4200,
-        }
-    )
-    assert costs.callout(Rank.CAPTAIN, on_reserve=True) == 18500
-    assert costs.callout(Rank.FIRST_OFFICER, on_reserve=False) == 24000
-    assert costs.callout(Rank.SENIOR_CABIN_CREW, on_reserve=True) == 9500
-    assert costs.callout(Rank.CABIN_CREW, on_reserve=False) == 12500

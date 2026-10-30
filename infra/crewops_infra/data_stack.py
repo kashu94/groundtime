@@ -1,8 +1,7 @@
-"""The operational data store: one DynamoDB table with a change stream.
+"""The data store: one DynamoDB table.
 
-On-demand billing, so an idle table costs nothing beyond a few cents of storage. The stream
-carries new and old images so the disruption agent can see exactly what changed. TTL clears
-short-lived items such as idempotency markers.
+On-demand billing, so an idle table costs nothing beyond a few cents of storage. TTL clears
+Qloo's cached answers after a day.
 
 Development stages are disposable: deleting the stack deletes the table. Any other stage
 keeps the table, turns on point-in-time recovery and blocks accidental deletion.
@@ -36,20 +35,7 @@ class DataStack(Stack):
             partition_key=key(schema.PK),
             sort_key=key(schema.SK),
             billing=dynamodb.Billing.on_demand(),
-            dynamo_stream=dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
             time_to_live_attribute=schema.TTL,
-            global_secondary_indexes=[
-                dynamodb.GlobalSecondaryIndexPropsV2(
-                    index_name=schema.GSI1,
-                    partition_key=key(schema.GSI1_PK),
-                    sort_key=key(schema.GSI1_SK),
-                ),
-                dynamodb.GlobalSecondaryIndexPropsV2(
-                    index_name=schema.GSI2,
-                    partition_key=key(schema.GSI2_PK),
-                    sort_key=key(schema.GSI2_SK),
-                ),
-            ],
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=not disposable
             ),
@@ -58,4 +44,3 @@ class DataStack(Stack):
         )
 
         CfnOutput(self, "TableName", value=self.table.table_name)
-        CfnOutput(self, "TableStreamArn", value=self.table.table_stream_arn or "")

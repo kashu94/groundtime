@@ -167,11 +167,8 @@ def plan_team(
                     f"enable {user}",
                     lambda u=user: cognito.admin_enable_user(UserPoolId=pool_id, Username=u),
                 )
-            # The speaker device has a password of its own (web_env --speaker), which the hosted
-            # app and the TV sign in with: a team reset would lock them out.
-            device = Role.SPEAKER in m.roles
-            if (reset_passwords and not device) or account.status in STUCK:
-                why = "" if reset_passwords and not device else " (it has no usable one)"
+            if reset_passwords or account.status in STUCK:
+                why = "" if reset_passwords else " (it has no usable one)"
                 plan.add(
                     f"set the password of {user}{why}",
                     lambda u=user: _set_password(cognito, pool_id, u, password()),
@@ -200,7 +197,7 @@ def plan_team(
                     UserPoolId=pool_id, Username=u, GroupName=g
                 ),
             )
-        wanted = profile_item(user, m.name, roles, m.crew_id, m.desk)
+        wanted = profile_item(user, m.name, roles, m.crew_id, m.traveller_id)
         if get_profile(table, user) != wanted:
             plan.add(f"write the profile of {user}", lambda w=wanted: put_profile(table, w))
 
@@ -280,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     import boto3
     from botocore.exceptions import BotoCoreError, ClientError
 
-    from crewops.store.ops_store import table_for
+    from crewops.store import table_for
 
     settings = Settings.from_env()
     cached: list[str] = []

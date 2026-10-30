@@ -1,4 +1,5 @@
 {
+ "note": "Crew trips (pairings) for the seed week: each duty day, its legs, and who flies it. A night stop is a duty day that ends away from where the next one starts.",
  "pairings": [
   {
    "pairing_id": "P-2201",
@@ -1601,14 +1602,5 @@
     }
    ]
   }
- ],
- "flagged_exceptions": [
-  {
-   "crew_id": "C-5417",
-   "date": "2026-10-17",
-   "rule": "RULE-CERT-06",
-   "note": "recurrent_training expires 2026-10-15; assignment on 2026-10-17 is illegal and must be resolved (see scenario S5)."
-  }
- ],
- "note": "Every assignment is legal under rules.json except the flagged exceptions listed here."
+ ]
 }

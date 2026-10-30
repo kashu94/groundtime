@@ -2,7 +2,7 @@
 
 One crew hotel area per station: the point layover searches start from, the time the hotel
 transfer takes each way, and the local clock. One terminal per station for passengers, with
-the times a passenger must allow to get out and back in. Every station in the network is in
+the times a passenger must allow to get through it. Every station in the network is in
 India, so local time is IST (UTC+05:30, no daylight saving) and no time zone database is
 needed.
 """
@@ -58,8 +58,9 @@ class Airport:
     """The domestic terminal at a station, and the times a passenger has to allow there.
 
     Every flight in the network is domestic, so no visa or immigration applies. What decides
-    whether a passenger may leave is security: once screened they are airside, and Indian
-    airports do not let them walk back out.
+    whether a passenger can go anywhere is whether they have reached the airport: Indian
+    airports let a passenger back out of the departure terminal only with the airline's and
+    security's clearance, so a plan for someone already there stays inside.
     """
 
     station: str
@@ -68,9 +69,7 @@ class Airport:
     lat: float
     lon: float
     city_radius_m: int = 12000
-    """How far a city outing may go from the terminal."""
-    exit_minutes: int = 30
-    """From reaching the terminal door to a cab or the arrivals kerb, or from the gate out."""
+    """How far from the airport an outing on the way in may go."""
     security_minutes: int = 45
     """Bag drop and security, from the terminal door to airside."""
     gate_close_minutes: int = 25

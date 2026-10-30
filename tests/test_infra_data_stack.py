@@ -5,7 +5,7 @@ import pytest
 pytest.importorskip("aws_cdk")
 
 from aws_cdk import App  # noqa: E402
-from aws_cdk.assertions import Match, Template  # noqa: E402
+from aws_cdk.assertions import Template  # noqa: E402
 from crewops_infra.data_stack import DataStack  # noqa: E402
 
 from crewops.config import Settings  # noqa: E402
@@ -22,7 +22,7 @@ def table(template: Template) -> dict:
     return resource
 
 
-def test_single_table_with_keys_stream_and_ttl():
+def test_single_table_with_keys_and_ttl():
     t = synth("dev")
     t.resource_count_is("AWS::DynamoDB::GlobalTable", 1)
     t.has_resource_properties(
@@ -34,13 +34,11 @@ def test_single_table_with_keys_stream_and_ttl():
                 {"AttributeName": "pk", "KeyType": "HASH"},
                 {"AttributeName": "sk", "KeyType": "RANGE"},
             ],
-            "StreamSpecification": {"StreamViewType": "NEW_AND_OLD_IMAGES"},
             "TimeToLiveSpecification": {"AttributeName": "expires_at", "Enabled": True},
-            "GlobalSecondaryIndexes": Match.array_with(
-                [Match.object_like({"IndexName": "gsi1"}), Match.object_like({"IndexName": "gsi2"})]
-            ),
         },
     )
+    props = table(t)["Properties"]
+    assert "StreamSpecification" not in props and "GlobalSecondaryIndexes" not in props
 
 
 def test_dev_stage_is_disposable():
@@ -59,6 +57,5 @@ def test_other_stages_are_protected():
     assert pitr["PointInTimeRecoveryEnabled"] is True
 
 
-def test_outputs_table_name_and_stream():
-    outputs = synth("dev").find_outputs("*")
-    assert {"TableName", "TableStreamArn"} <= set(outputs)
+def test_outputs_table_name():
+    assert "TableName" in synth("dev").find_outputs("*")

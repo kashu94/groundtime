@@ -3,8 +3,9 @@
 Three sources, kept apart as in the crew layover brief:
 
 * the schedule gives the wait (``ground_wait``): when the traveller is free, when they must be
-  back at the terminal door and at the gate, and whether they may leave at all. A passenger
-  past security stays in the terminal; one not yet screened may go out if the time allows;
+  at the terminal door and at the gate, and whether an outing is possible at all. Someone
+  already at the airport stays in the terminal, as does anyone connecting; someone who hasn't
+  left for the airport yet can spend the delay near it, on their way in, if the time allows;
 * Qloo gives the candidates, ranked by taste affinity to what the traveller loves: places to
   see and to eat around the airport, places in the terminal, and films and series;
 * the checks here keep only what fits: a sight that is a real sight (Qloo tags hotels and
@@ -68,8 +69,6 @@ MIN_OUTING_MINUTES = 90
 """Less than this outside, after the rides, is not worth leaving the terminal for."""
 BUFFER = timedelta(minutes=15)
 """Slack before each deadline: the terminal door, and the gate."""
-AIRSIDE_FROM = timedelta(minutes=90)
-"""A passenger already through security is free from about this long before departure."""
 DEPLANE = timedelta(minutes=15)
 ROAD_FACTOR = 1.4
 """Road distance over straight-line distance, in an Indian city."""
@@ -114,6 +113,8 @@ class GroundWait:
     connecting_from: Flight | None
     free_from: datetime
     """Local time the traveller's time is their own."""
+    usual_terminal_by: datetime
+    """Local time they'd have had to be at the terminal door without the delay."""
     at_terminal_by: datetime
     """Local time to be at the terminal door, before bag drop and security."""
     at_gate_by: datetime
@@ -125,15 +126,15 @@ class GroundWait:
 
     @property
     def can_leave(self) -> bool:
-        return self.position is not Position.AIRSIDE
+        """Only someone who hasn't reached the airport yet. Once in the departure terminal,
+        Indian airports let a passenger back out only with the airline's and security's
+        clearance, and a connecting passenger stays airside."""
+        return self.position is Position.AWAY and self.connecting_from is None
 
     @property
     def outside_minutes(self) -> int:
-        """Time out of the terminal, before any ride."""
-        start = self.free_from + timedelta(
-            minutes=self.airport.exit_minutes if self.position is Position.LANDSIDE else 0
-        )
-        return max(0, int((self.at_terminal_by - start).total_seconds() // 60))
+        """Time before they need to be at the terminal, rides included."""
+        return max(0, int((self.at_terminal_by - self.free_from).total_seconds() // 60))
 
     @property
     def wait_minutes(self) -> int:
@@ -149,17 +150,66 @@ class GroundWait:
 
     @property
     def stay_reason(self) -> str | None:
-        if self.position is Position.AIRSIDE:
+        if self.connecting_from is not None:
             return (
-                "You're past security, and airports in India don't let screened passengers "
-                "walk back out, so this plan stays in the terminal."
+                "You're connecting, so you stay airside between flights: this plan is "
+                "inside the terminal."
+            )
+        if self.position is Position.AIRPORT:
+            return (
+                "You're already at the airport. Indian airports only let a passenger back out "
+                "of the departure terminal with the airline's and security's clearance, so "
+                "this plan stays inside."
             )
         if self.mode == "terminal":
             return (
-                f"There's not enough time to go out and be back at the terminal by "
-                f"{self.at_terminal_by:%H:%M}, so this plan stays at the airport."
+                f"There isn't enough time for an outing before you need to be at the "
+                f"terminal by {self.at_terminal_by:%H:%M}, so this plan is at the airport."
             )
         return None
+
+    @property
+    def staff_summary(self) -> str:
+        """The wait as customer care reads it: where they are and the deadline that matters."""
+        gate = f"at the gate by {self.at_gate_by:%H:%M}"
+        if self.connecting_from is not None:
+            return f"Connecting at {self.airport.city}: stays airside, {gate}."
+        if self.position is Position.AIRPORT:
+            return f"At the airport: a plan inside the terminal, {gate}."
+        terminal = f"at the terminal by {self.at_terminal_by:%H:%M}"
+        if self.mode == "city":
+            return f"Not at the airport yet: an outing near it on the way in, {terminal}."
+        return f"Not at the airport yet: {terminal}."
+
+    @property
+    def headline(self) -> str:
+        """The wait in plain words: where they are, what changed, and by when."""
+        no = self.flight.flight_no
+        late = f"{no} is {late_by(self.delay_minutes)} late" if self.delay_minutes else None
+        gate = f"be at the gate by {self.at_gate_by:%H:%M}"
+        if self.connecting_from is not None:
+            first = f"You're connecting at {self.airport.city} for {no}"
+            if self.delay_minutes:
+                first += f", which is {late_by(self.delay_minutes)} late"
+            return f"{first}. Stay airside and {gate}; until then, here's your time inside."
+        if self.position is Position.AIRPORT:
+            first = f"You're at {self.airport.city} airport. " + (
+                f"{late}, so {gate}." if late else f"{no} is on time: {gate}."
+            )
+            return f"{first} Until then, here's what to do inside the terminal."
+        if not late:
+            return f"No delay on {no}: be at the terminal by {self.at_terminal_by:%H:%M}."
+        if self.mode == "city":
+            return (
+                f"You haven't left for the airport yet. {late}, so instead of being at the "
+                f"airport at {self.usual_terminal_by:%H:%M}, here's what to do near it on your "
+                f"way in, before you need to be at the terminal by {self.at_terminal_by:%H:%M}."
+            )
+        return (
+            f"You haven't left for the airport yet. {late}: be at the terminal by "
+            f"{self.at_terminal_by:%H:%M}. There isn't time for an outing first, so here's "
+            "what to do once you're there."
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -177,7 +227,10 @@ class GroundWait:
             "can_leave": self.can_leave,
             "mode": self.mode,
             "stay_reason": self.stay_reason,
+            "headline": self.headline,
+            "staff_summary": self.staff_summary,
             "free_from_local": _local(self.free_from),
+            "usual_terminal_by_local": _local(self.usual_terminal_by),
             "at_terminal_by_local": _local(self.at_terminal_by),
             "at_gate_by_local": _local(self.at_gate_by),
             "outside_minutes": self.outside_minutes if self.can_leave else 0,
@@ -195,9 +248,10 @@ def ground_wait(
     """The traveller's current wait on a trip, or None when every leg has left.
 
     Before the first leg they wait where they told us they are. Between legs they are
-    connecting: airside, from their arrival. A delay moves the departure, and the free time
-    starts when they would otherwise have had to be at the terminal (or, airside, at the gate
-    area), so a delay is time handed back, never time spent at the airport.
+    connecting: at the airport, airside, from their arrival. A delay moves the departure. For
+    someone not yet at the airport the free time starts when they would otherwise have had to
+    be at the terminal, so the delay is time handed back, not time spent at the airport; for
+    someone already there it starts now.
     """
     delays = delays or {}
     for i, leg in enumerate(legs):
@@ -208,24 +262,17 @@ def ground_wait(
         if airport is None:
             return None
         before = legs[i - 1] if i else None
+        security = timedelta(minutes=airport.security_minutes)
+        usual = leg.dep_utc - _to_gate(airport) - security - BUFFER
         if before is not None:
-            here = Position.AIRSIDE
+            here = Position.AIRPORT
             arrived = before.arr_utc + timedelta(minutes=delays.get(before.flight_id, 0))
             start = arrived + DEPLANE
         else:
             here = position
-            if here is Position.AIRSIDE:
-                start = leg.dep_utc - AIRSIDE_FROM
-            else:
-                # When they'd have had to be at the terminal door without the delay.
-                start = (
-                    leg.dep_utc
-                    - _to_gate(airport)
-                    - timedelta(minutes=airport.security_minutes)
-                    - BUFFER
-                )
+            start = now if here is Position.AIRPORT else usual
         at_gate_by = expected - _to_gate(airport)
-        at_terminal_by = at_gate_by - timedelta(minutes=airport.security_minutes) - BUFFER
+        at_terminal_by = at_gate_by - security - BUFFER
         return GroundWait(
             airport=airport,
             flight=leg,
@@ -233,10 +280,19 @@ def ground_wait(
             position=here,
             connecting_from=before,
             free_from=max(start, now).astimezone(airport.tz),
+            usual_terminal_by=usual.astimezone(airport.tz),
             at_terminal_by=at_terminal_by.astimezone(airport.tz),
             at_gate_by=at_gate_by.astimezone(airport.tz),
         )
     return None
+
+
+def late_by(minutes: int) -> str:
+    """``240`` -> ``4 h``, ``150`` -> ``2 h 30 min``, ``45`` -> ``45 min``."""
+    hours, rest = divmod(minutes, 60)
+    if not hours:
+        return f"{rest} min"
+    return f"{hours} h" + (f" {rest} min" if rest else "")
 
 
 def _to_gate(airport: Airport) -> timedelta:
@@ -472,16 +528,15 @@ def _outing(
     meals: list[Venue],
     rejected: Counter[str],
 ) -> tuple[list[tuple[Venue, str, datetime, datetime, int]], datetime | None, datetime | None]:
-    """The best outing that is back at the terminal in time: two stops if they fit, else one.
+    """The best outing that gets them to the terminal in time: two stops if they fit, else one.
 
-    Every candidate is walked through on the clock: ride there, the visit (the place must be
-    open for all of it), the next ride, and the ride back to the terminal door.
+    Every candidate is walked through on the clock, from the time they'd have left for the
+    airport: the ride there (counted from the airport, as the search is centred on it), the
+    visit (the place must be open for all of it), the next ride, and the ride to the terminal.
     """
     airport = wait.airport
     home = (airport.lat, airport.lon)
-    start = wait.free_from + timedelta(
-        minutes=airport.exit_minutes if wait.position is Position.LANDSIDE else 0
-    )
+    start = wait.free_from
     stays = {"sight": SIGHT_MINUTES, "meal": MEAL_MINUTES}
     options: list[list[tuple[Venue, str]]] = []
     for s in sights[:5]:
@@ -611,12 +666,7 @@ def plan_groundtime(wait: GroundWait, taste: TasteProfile, qloo: QlooClient) -> 
         ]  # fmt: skip
 
     note = None
-    if wait.delay_minutes == 0 and wait.position is Position.AWAY:
-        note = (
-            f"No delay on {wait.flight.flight_no}: be at the terminal by "
-            f"{wait.at_terminal_by:%H:%M}."
-        )
-    elif city and not stops:
+    if city and not stops:
         note = (
             "Nothing nearby fits the time and stays open long enough. Head to the airport "
             f"by {wait.at_terminal_by:%H:%M} and use the time there."

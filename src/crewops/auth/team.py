@@ -1,9 +1,9 @@
-"""The team: who can sign in, with which roles, linked to which crew record or desk.
+"""The team: who can sign in, with which roles, linked to which crew or passenger record.
 
 The demo team lives in ``data/team/demo_team.json``: usernames, display names and roles,
-and nothing private (no email, phone or password). It is checked against the operation
-before anything is created: a crew login must name a real crew member under their own name,
-and each controller must hold a real desk under the name the desk lists.
+and nothing private (no email, phone or password). It is checked before anything is
+created: a crew login must name a real crew member under their own name, and a traveller
+login a passenger record of its own.
 """
 
 from __future__ import annotations
@@ -16,19 +16,16 @@ from pathlib import Path
 from typing import Any
 
 from crewops.domain import DataError, Role
-from crewops.domain.desks import DESKS
 from crewops.ingestion.seed import SeedData, default_seed_dir
 
 USERNAME_RE = re.compile(r"^(?=.{3,32}$)[a-z][a-z0-9]*(?:\.[a-z0-9]+)?$")
-"""firstname.lastname for staff (rohit.malhotra), crew id and surname for crew (c1042.nair)."""
+"""firstname.lastname for staff (neha.joshi), crew id and surname for crew (c1042.nair),
+traveller id and surname for travellers (tr1001.kapoor)."""
+TRAVELLER_ID_RE = re.compile(r"^TR-\d{4}$")
 CREW_NAME_RE = re.compile(r"^[A-Z]\.\s*[A-Z]|\b[A-Z]\.?$")
-""""A. Nair", "A.Nair", "Nair A.": how crew are written, never how staff are."""
-EXCLUSIVE = (
-    (frozenset({Role.CREW}), "a crew login holds no other role"),
-    (frozenset({Role.CONTROLLER, Role.APPROVER}), "nobody both submits and approves plans"),
-    (frozenset({Role.SPEAKER}), "a speaker is a device: it holds no other role"),
-    (frozenset({Role.TRAVELLER}), "a traveller login holds no other role"),
-)
+""""A. Nair", "A.Nair", "Nair A.": how crew are written, never how anyone else is."""
+ALONE = frozenset({Role.CREW, Role.TRAVELLER})
+"""A crew or traveller login is that person's own and holds no other role."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,13 +34,13 @@ class TeamMember:
     name: str
     roles: frozenset[Role]
     crew_id: str | None = None
-    desk: str | None = None
+    traveller_id: str | None = None
 
     @classmethod
     def from_dict(cls, d: Any, ctx: str) -> TeamMember:
         if not isinstance(d, dict):
             raise DataError(f"{ctx}: expected an object")
-        unknown = set(d) - {"username", "name", "roles", "crew_id", "desk"}
+        unknown = set(d) - {"username", "name", "roles", "crew_id", "traveller_id"}
         if unknown:
             raise DataError(f"{ctx}: unknown fields {sorted(unknown)}")
         username, name, roles = d.get("username"), d.get("name"), d.get("roles")
@@ -60,7 +57,7 @@ class TeamMember:
             parsed = frozenset(Role(r) for r in roles)
         except ValueError:
             raise DataError(f"{ctx}.roles: unknown role in {roles}") from None
-        return cls(username, name.strip(), parsed, d.get("crew_id"), d.get("desk"))
+        return cls(username, name.strip(), parsed, d.get("crew_id"), d.get("traveller_id"))
 
 
 def default_team_file() -> Path:
@@ -73,29 +70,22 @@ def load_team(path: Path | None = None) -> list[TeamMember]:
 
 
 def validate_team(members: list[TeamMember], seed: SeedData) -> list[str]:
-    """Every problem with the team, checked against the operation. Empty means usable."""
+    """Every problem with the team, checked against the network. Empty means usable."""
     errors: list[str] = []
     crew = {c.crew_id: c for c in seed.crew}
-    desks = {d.desk_id: d for d in DESKS}
     for field_name, values in (
         ("username", [m.username for m in members]),
         ("name", [m.name for m in members]),
         ("crew_id", [m.crew_id for m in members if m.crew_id]),
-        ("desk", [m.desk for m in members if m.desk]),
+        ("traveller_id", [m.traveller_id for m in members if m.traveller_id]),
     ):
         for value, n in Counter(values).items():
             if n > 1:
                 errors.append(f"{field_name} {value!r} is used by {n} members")
     for m in members:
         who = m.username
-        if Role.CREW in m.roles and len(m.roles) > 1:
-            errors.append(f"{who}: {EXCLUSIVE[0][1]}")
-        if EXCLUSIVE[1][0] <= m.roles:
-            errors.append(f"{who}: {EXCLUSIVE[1][1]}")
-        if Role.SPEAKER in m.roles and len(m.roles) > 1:
-            errors.append(f"{who}: {EXCLUSIVE[2][1]}")
-        if Role.TRAVELLER in m.roles and len(m.roles) > 1:
-            errors.append(f"{who}: {EXCLUSIVE[3][1]}")
+        if m.roles & ALONE and len(m.roles) > 1:
+            errors.append(f"{who}: a crew or traveller login holds no other role")
         if Role.CREW in m.roles:
             record = crew.get(m.crew_id or "")
             if record is None:
@@ -104,15 +94,11 @@ def validate_team(members: list[TeamMember], seed: SeedData) -> list[str]:
                 errors.append(f"{who}: {m.crew_id} is {record.name}, not {m.name}")
         elif m.crew_id:
             errors.append(f"{who}: only a crew login is linked to a crew id")
-        if Role.CONTROLLER in m.roles:
-            desk = desks.get(m.desk or "")
-            if desk is None:
-                errors.append(f"{who}: a controller needs a desk ({', '.join(desks)})")
-            elif desk.controller != m.name:
-                errors.append(f"{who}: {desk.desk_id} is {desk.controller}'s desk, not {m.name}'s")
-        elif m.desk:
-            errors.append(f"{who}: only a controller holds a desk")
+        if Role.TRAVELLER in m.roles:
+            if not TRAVELLER_ID_RE.match(m.traveller_id or ""):
+                errors.append(f"{who}: a traveller login needs a traveller id like TR-1001")
+        elif m.traveller_id:
+            errors.append(f"{who}: only a traveller login is linked to a traveller id")
         if Role.CREW not in m.roles and CREW_NAME_RE.search(m.name):
-            # "A. Nair" is how crew are named and verified; staff are named in full.
             errors.append(f"{who}: {m.name!r} is written like a crew member's name")
     return errors

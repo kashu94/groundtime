@@ -1,57 +1,34 @@
-"""Typed records shared by every layer: engine, store, ingestion, tools and agents."""
+"""Typed records shared by every layer: the network, the store, the server."""
 
+from crewops.domain.airlines import Airline
 from crewops.domain.models import (
     AircraftType,
-    Certification,
-    CertType,
-    CostTable,
     Crew,
     CrewStatus,
-    DailyHours,
     DataError,
-    DutyClock,
     Flight,
-    GateSlot,
     Pairing,
     PairingDay,
     PairingSeat,
     Rank,
-    ReserveDuty,
-    RiskSignal,
-    RosterException,
-    Rule,
     parse_date,
-    parse_hhmm,
     parse_utc,
 )
-from crewops.domain.reports import Report, Reporter, ReportType, Role, authorize
+from crewops.domain.roles import Caller, Role
 
 __all__ = [
     "AircraftType",
-    "CertType",
-    "Certification",
-    "CostTable",
+    "Airline",
+    "Caller",
     "Crew",
     "CrewStatus",
-    "DailyHours",
     "DataError",
-    "DutyClock",
     "Flight",
-    "GateSlot",
     "Pairing",
     "PairingDay",
     "PairingSeat",
     "Rank",
-    "Report",
-    "ReportType",
-    "Reporter",
-    "ReserveDuty",
-    "RiskSignal",
     "Role",
-    "RosterException",
-    "Rule",
-    "authorize",
     "parse_date",
-    "parse_hhmm",
     "parse_utc",
 ]

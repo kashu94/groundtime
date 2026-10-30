@@ -1,12 +1,8 @@
 """Password resets from inside the app, by admins.
 
-Who may reset whom:
-
-* an admin resets the people who work the operation: crew, reporters, controllers, approvers
-  and auditors;
-* a super admin also resets admins and other super admins;
-* nobody resets their own password here, and the speaker device's password is never reset
-  (the hosted app and the TV sign in with it; ``web_env --speaker`` replaces it).
+An admin resets anyone's password except another admin's and their own: those go through
+the team command (``python -m crewops.auth.provision --apply --reset-passwords``), run by
+whoever holds the AWS account.
 
 The new password is generated here, never typed by the admin, and set as permanent, so it
 works at once; the admin passes it on to the person by hand. Each reset is an audit event in
@@ -23,8 +19,6 @@ from typing import Any
 from crewops.auth.provision import password_problems
 from crewops.domain import Role
 
-ADMIN_ROLES = frozenset({Role.ADMIN, Role.SUPER_ADMIN})
-
 
 class AccountError(Exception):
     def __init__(self, code: str, message: str) -> None:
@@ -38,14 +32,12 @@ def may_reset(
 ) -> None:
     """Raise AccountError unless this caller may reset this account's password."""
     mine, theirs = frozenset(caller_roles), frozenset(target_roles)
-    if not mine & ADMIN_ROLES:
+    if Role.ADMIN not in mine:
         raise AccountError("FORBIDDEN", "only an admin resets passwords")
     if target_user == caller_user:
-        raise AccountError("FORBIDDEN", "you can't reset your own password here; ask a super admin")
-    if Role.SPEAKER in theirs:
-        raise AccountError("FORBIDDEN", "the speaker's password is set with web_env --speaker")
-    if theirs & ADMIN_ROLES and Role.SUPER_ADMIN not in mine:
-        raise AccountError("FORBIDDEN", "only a super admin resets an admin's password")
+        raise AccountError("FORBIDDEN", "you can't reset your own password here")
+    if Role.ADMIN in theirs:
+        raise AccountError("FORBIDDEN", "an admin's password is reset with the team command")
 
 
 def new_password(length: int = 16) -> str:

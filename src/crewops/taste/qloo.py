@@ -1,14 +1,13 @@
 """Client for the Qloo Taste AI API.
 
 Only the server calls Qloo, never a browser, and only with aggregate signals: Qloo entity and
-tag ids, a map point, a radius. No crew id, name, username or email is ever sent. A crew
-member's picks reach Qloo as the ids of the things they love, mixed with their colleagues'
-picks, so Qloo cannot tell whose they are. ``guard`` enforces this on every request: a
-parameter outside the allow-list, or a value that looks like a crew id or an email address,
-is refused before anything leaves the process.
+tag ids, a map point, a radius. No traveller or crew id, name, username or email is ever
+sent: a person's picks reach Qloo only as the ids of the things they love. ``guard`` enforces
+this on every request: a parameter outside the allow-list, or a value that looks like a
+traveller or crew id or an email address, is refused before anything leaves the process.
 
 Calls are bounded: one timeout, one retry for a rate limit or a server error, and a short
-pause after repeated failures, so a slow Qloo never holds up a crew controller. Errors carry
+pause after repeated failures, so a slow Qloo never holds up a waiting passenger. Errors carry
 a code (``QLOO_AUTH``, ``QLOO_RATE_LIMIT``, ``QLOO_UNAVAILABLE``, ``QLOO_BAD_RESPONSE``,
 ``QLOO_REFUSED``) that the tools pass on as they are.
 

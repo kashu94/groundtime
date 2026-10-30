@@ -4,8 +4,9 @@ This module doesn't check signatures. The claims must come from a token already 
 upstream (AgentCore's JWT authorizer in front of the MCP server, and tokens.py). What it does
 check: it must be an access token (id tokens are for the client, not for calling services),
 for this pool and app client, and not expired. Roles come from Cognito groups, which only an
-admin can change. Crew id and desk come from the user's profile in the operations table,
-which only the team command writes. Nothing is taken from user input.
+admin can change. The crew or passenger record a login stands for comes from the user's
+profile in the operations table, which only the team command writes. Nothing is taken from
+user input.
 """
 
 from __future__ import annotations
@@ -15,8 +16,7 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from crewops.domain import Role
-from crewops.tools import Caller
+from crewops.domain import Caller, Role
 
 
 class AuthError(Exception):
@@ -75,9 +75,9 @@ def caller_from_claims(
 
     profile = profiles(username) or {}
     crew_id = profile.get("crew_id") if Role.CREW in roles else None
-    desk = profile.get("desk") if Role.CONTROLLER in roles else None
+    traveller_id = profile.get("traveller_id") if Role.TRAVELLER in roles else None
     if Role.CREW in roles and not crew_id:
         raise AuthError(f"{username} is crew but is linked to no crew record")
-    if Role.CONTROLLER in roles and not desk:
-        raise AuthError(f"{username} is a controller but holds no desk")
-    return Caller(username, roles, crew_id, desk)
+    if Role.TRAVELLER in roles and not traveller_id:
+        raise AuthError(f"{username} is a traveller but is linked to no passenger record")
+    return Caller(username, roles, crew_id, traveller_id)

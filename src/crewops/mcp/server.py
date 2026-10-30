@@ -12,8 +12,9 @@ on 127.0.0.1 only, still requiring tokens from the configured pool.
 
 from __future__ import annotations
 
-import json
 import logging
+import os
+from datetime import UTC, datetime
 from typing import Any
 
 import anyio
@@ -23,28 +24,24 @@ from mcp.types import ToolAnnotations
 
 from crewops.auth.identity import AuthError, caller_from_claims
 from crewops.auth.tokens import TokenVerifier, bearer
-from crewops.mcp.api import ApiError, CrewOpsApi
-from crewops.tools import Caller
+from crewops.domain import Caller
+from crewops.mcp.api import ApiError, GroundtimeApi
 
 log = logging.getLogger(__name__)
 
 INSTRUCTIONS = """\
-Groundtime turns waiting time into time well spent. For a traveller, `my_groundtime` is their
-wait (a delay or a connection) and a plan for it: places and films picked by Qloo for their
-taste, each checked for opening hours, dietary needs and getting back to the gate in time.
-Crew get the same care on a layover (`my_layover`), within their rest rules. Customer care
-sees every delayed flight's travellers (`delayed_flights`, `flight_care`).
-Behind it runs crew control: `ask` answers crew-control questions in plain words from the
-live roster, every figure checked against the legality engine; `my_queue` is what is waiting
-for the signed-in person; plans are submitted by a controller and approved by a different
-person. For a traveller, `ask` is their Groundtime concierge.
-The tools available depend on the signed-in user's role."""
+Groundtime turns a flight delay into time well spent. A traveller books a trip and, when they
+confirm it, shares a few things they love; `my_groundtime` is then their wait (a delay or a
+connection) and a plan for it: places, food and films picked by Qloo for their taste, each
+checked for opening hours, dietary needs and getting to the gate in time. Someone already at
+the airport is never sent out of it. `ask` is the traveller's concierge. Crew get the same
+care on a layover (`my_layover`). Customer care records delays (`record_delay`) and sees
+every waiting passenger's plan (`flight_care`). The tools available depend on the signed-in
+user's role."""
 
 READ = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False)
 COMMIT = ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False)
-OUTWARD = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=True)
-"""Reaches outside Groundtime (SNS emails the address)."""
 QLOO = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
 """Reads only, but asks Qloo, outside Groundtime (with ids and places, never a person)."""
 
@@ -72,7 +69,7 @@ class Gate:
 
 
 def build_server(
-    api: CrewOpsApi, gate: Gate, *, host: str = "127.0.0.1", port: int = 8000
+    api: GroundtimeApi, gate: Gate, *, host: str = "127.0.0.1", port: int = 8000
 ) -> FastMCP:
     mcp = FastMCP(
         "Groundtime",
@@ -83,8 +80,8 @@ def build_server(
     )
 
     async def run(ctx: Context, call: Any) -> Any:
-        # Token check and call both block (key fetch, DynamoDB, Bedrock), so they go to a
-        # worker thread. The event loop has to stay free for health pings.
+        # Token check and call both block (key fetch, DynamoDB, Qloo, Bedrock), so they go
+        # to a worker thread. The event loop has to stay free for health pings.
 
         def work() -> Any:
             try:
@@ -100,165 +97,76 @@ def build_server(
         return await anyio.to_thread.run_sync(work)
 
     @mcp.tool(annotations=READ)
-    async def ask(question: str, ctx: Context, conversation_id: str = "") -> dict:
-        """Ask a crew-control question in plain words. The answer is built from the live
-        roster and the legality engine, and every fact in it is checked before it is given.
-        `awaiting` says when the answer is a question back (which id, which date). Pass the
-        same `conversation_id` (letters, digits, - and _) on every question of one
-        conversation, so a short reply ("Captain") or "is she legal for P-2291?" is read
-        with the previous question."""
-        return await run(ctx, lambda c: api.ask(c, question, conversation_id))
-
-    @mcp.tool(annotations=READ)
     async def whoami(ctx: Context) -> dict:
-        """The signed-in person as the server sees them: username, roles, and their crew id
-        or desk where they have one."""
+        """The signed-in person as the server sees them: username, roles, and the crew or
+        passenger record they stand for."""
         return await run(ctx, lambda c: api.whoami(c))
 
-    @mcp.tool(annotations=READ)
-    async def my_queue(ctx: Context) -> list:
-        """What is waiting for the signed-in person: plans to decide (approver), disruptions
-        on their desk ready for a plan, and their plans sent back (controller)."""
-        return await run(ctx, lambda c: api.queue(c))
+    # -- Travellers ---------------------------------------------------------
 
     @mcp.tool(annotations=READ)
-    async def speaker_feed(ctx: Context, scope: str = "room", limit: int = 20) -> dict:
-        """Speaker devices only: the spoken alerts for a desk speaker (scope desk-1, desk-2,
-        desk-3), the approvals corner ("approvals") or the whole ops room ("room"): the
-        latest event of each disruption, newest first, each with an id to remember it by."""
-        return await run(ctx, lambda c: api.speaker_feed(c, scope, limit))
+    async def stations(ctx: Context) -> list:
+        """The airports the network flies between: code, city and terminal."""
+        return await run(ctx, lambda c: api.stations(c))
 
     @mcp.tool(annotations=READ)
-    async def ops_board(ctx: Context) -> dict:
-        """The ops-room board: every open disruption (most serious and escalated
-        first) with its desk, waiting time and recommended cover; each desk's load; and
-        today's flights, crew out and reserves on call. Speaker devices and crew control."""
-        return await run(ctx, lambda c: api.ops_board(c))
-
-    @mcp.tool(annotations=WRITE)
-    async def welcome_back(ctx: Context) -> dict:
-        """Controllers and approvers: what came to your desk (or to approvals) since you last
-        signed in, with a spoken summary. Records this sign-in."""
-        return await run(ctx, lambda c: api.welcome_back(c))
-
-    @mcp.tool(annotations=WRITE)
-    async def push_subscribe(ctx: Context, endpoint: str, p256dh: str, auth: str) -> dict:
-        """Controllers and approvers: turn on desktop alerts in this browser with the push
-        subscription its service worker made (endpoint and keys)."""
-        return await run(ctx, lambda c: api.push_subscribe(c, endpoint, p256dh, auth))
-
-    @mcp.tool(annotations=WRITE)
-    async def push_unsubscribe(ctx: Context, endpoint: str) -> dict:
-        """Turn desktop alerts off for one browser."""
-        return await run(ctx, lambda c: api.push_unsubscribe(c, endpoint))
-
-    @mcp.tool(annotations=WRITE)
-    async def still_here(ctx: Context) -> dict:
-        """Controllers and approvers: record that your console is open now, so the next
-        "welcome back" covers only what came after."""
-        return await run(ctx, lambda c: api.still_here(c))
-
-    @mcp.tool(annotations=READ)
-    async def disruptions(ctx: Context, limit: int = 40) -> list:
-        """Recent disruptions in every status, newest report first, with their analysis
-        summary: the desk's chronological feed."""
-        return await run(ctx, lambda c: api.disruptions(c, limit))
-
-    @mcp.tool(annotations=READ)
-    async def show_disruption(disruption_id: str, ctx: Context) -> dict:
-        """A disruption's status, analysis summary, plans and audit trail."""
-        return await run(ctx, lambda c: api.show(c, disruption_id))
-
-    @mcp.tool(annotations=WRITE)
-    async def report_disruption(
-        report_type: str, details: dict, ctx: Context, narrative: str = ""
-    ) -> dict:
-        """Report a disruption (today to two months ahead), or, as an admin, book planned
-        leave (planned_leave: crew_id, from_date, to_date, reason annual_leave, medical,
-        training or personal; up to the end of the rostered period). report_type is one of
-        crew_unavailable,
-        multiple_crew_unavailable, certification_lapse, flight_delay, aircraft_technical,
-        station_disruption, gate_closure, gate_change. details depend on the type, e.g.
-        crew_unavailable: {"crew_id": "C-1042", "from_date": "2026-10-13", "to_date":
-        "2026-10-14", "reason": "sick"}; multiple_crew_unavailable: the same with "crew_ids"
-        (2 to 12) instead of "crew_id"; gate_closure: {"gate": "BLR-G2", "from_utc",
-        "to_utc", "reason"}. Crew may report only their own unavailability. It is analysed
-        automatically."""
-        return await run(ctx, lambda c: api.report(c, report_type, details, narrative))
-
-    @mcp.tool(annotations=WRITE)
-    async def submit_plan(
-        disruption_id: str,
-        ctx: Context,
-        choices: dict | None = None,
-        note: str = "",
-        accept_uncovered: bool = False,
-    ) -> dict:
-        """Controller: submit cover for a disruption on your desk. By default the analysis's
-        recommendation; choices overrides a seat, e.g. {"P-2291/Captain": "C-1526"}. A
-        different approver must approve it."""
-        return await run(
-            ctx, lambda c: api.submit(c, disruption_id, choices, note, accept_uncovered)
-        )
-
-    @mcp.tool(annotations=COMMIT)
-    async def approve_plan(disruption_id: str, plan_id: str, ctx: Context) -> dict:
-        """Approver: approve a plan you did not submit. Legality is checked again, and the
-        roster is changed in one step; a plan whose roster changed meanwhile comes back
-        STALE instead."""
-        return await run(ctx, lambda c: api.approve(c, disruption_id, plan_id))
-
-    @mcp.tool(annotations=WRITE)
-    async def reject_plan(disruption_id: str, plan_id: str, reason: str, ctx: Context) -> dict:
-        """Approver: send a plan back to its controller, saying why."""
-        return await run(ctx, lambda c: api.reject(c, disruption_id, plan_id, reason))
-
-    @mcp.tool(annotations=WRITE)
-    async def withdraw_plan(
-        disruption_id: str, plan_id: str, ctx: Context, reason: str = ""
-    ) -> dict:
-        """Controller: withdraw a plan you submitted that is still awaiting a decision."""
-        return await run(ctx, lambda c: api.withdraw(c, disruption_id, plan_id, reason))
-
-    @mcp.tool(annotations=WRITE)
-    async def close_disruption(disruption_id: str, reason: str, ctx: Context) -> dict:
-        """Controller: resolve a disruption that has no coverable seat, saying what was done
-        (for example, the flights were cancelled), or one handled outside crew control (a
-        gate closure re-gated, a delay every crew member absorbs). It then waits for an
-        approver to sign it off."""
-        return await run(ctx, lambda c: api.close(c, disruption_id, reason))
-
-    @mcp.tool(annotations=WRITE)
-    async def confirm_resolution(disruption_id: str, ctx: Context) -> dict:
-        """Approver: sign off a disruption a controller resolved with a remark (it is then
-        closed). Four eyes: never one you sent yourself."""
-        return await run(ctx, lambda c: api.confirm_resolution(c, disruption_id))
-
-    @mcp.tool(annotations=WRITE)
-    async def return_resolution(disruption_id: str, reason: str, ctx: Context) -> dict:
-        """Approver: send a resolved disruption back to its desk, saying why."""
-        return await run(ctx, lambda c: api.return_resolution(c, disruption_id, reason))
-
-    @mcp.tool(annotations=WRITE)
-    async def suggest_cover(
-        disruption_id: str, seat: str, crew_id: str, ctx: Context, note: str = ""
-    ) -> dict:
-        """Controller: suggest cover for a seat on another desk's disruption (seat as
-        "P-2291/Captain/C-1042"). The owning desk sees it and may adopt it; it plans nothing."""
-        return await run(ctx, lambda c: api.suggest(c, disruption_id, seat, crew_id, note))
+    async def find_flights(origin: str, destination: str, date: str, ctx: Context) -> list:
+        """Traveller: trips from `origin` to `destination` (station codes, e.g. GOI, BLR)
+        leaving on `date` (YYYY-MM-DD): direct flights first, then one-stop trips with a
+        same-day connection. Each has the `flight_ids` to book."""
+        return await run(ctx, lambda c: api.find_flights(c, origin, destination, date))
 
     @mcp.tool(annotations=QLOO)
-    async def my_groundtime(ctx: Context, position: str = "") -> dict:
-        """Traveller: your wait and the plan for it. `position` is where you are: away (not
-        at the airport yet), landside (at the terminal, before security) or airside (past
-        security, where nobody may leave). Places and films come from Qloo for your taste;
-        every stop is checked for opening hours, your dietary needs and getting back in
-        time."""
-        return await run(ctx, lambda c: api.my_groundtime(c, position))
+    async def taste_options(ctx: Context) -> dict:
+        """Traveller or crew: the short list to pick from (artists, films, series and books,
+        each a Qloo id) and the dietary needs Groundtime can check for."""
+        return await run(ctx, lambda c: api.taste_options(c))
+
+    @mcp.tool(annotations=WRITE)
+    async def book_trip(
+        flight_ids: list[str],
+        ctx: Context,
+        loves: list[dict] | None = None,
+        dietary: list[str] | None = None,
+        position: str = "away",
+    ) -> dict:
+        """Traveller: confirm a trip (`flight_ids` from `find_flights`) and, with it, up to
+        five things you love (each {"id", "name", "type"} from `taste_options` or
+        `taste_search`) and dietary needs (vegetarian, vegan, jain, halal, gluten_free).
+        Both are saved only now, together. Replaces any earlier booking."""
+        taste = {"loves": loves or [], "dietary": dietary or []}
+        return await run(ctx, lambda c: api.book_trip(c, flight_ids, taste, position))
+
+    @mcp.tool(annotations=READ)
+    async def my_trip(ctx: Context) -> dict:
+        """Traveller: your booking, the latest on each flight, your wait in plain words, and
+        your saved taste. No Qloo call."""
+        return await run(ctx, lambda c: api.my_trip(c))
+
+    @mcp.tool(annotations=WRITE)
+    async def set_position(position: str, ctx: Context) -> dict:
+        """Traveller: where you are now. `away` (not at the airport yet: a delay can be spent
+        near it, on the way in) or `airport` (already there: the plan stays inside, because
+        Indian airports only let a passenger back out with clearance)."""
+        return await run(ctx, lambda c: api.set_position(c, position))
+
+    @mcp.tool(annotations=QLOO)
+    async def my_groundtime(ctx: Context) -> dict:
+        """Traveller: your wait and the plan for it. Places, food and films come from Qloo
+        for your taste; every stop is checked for opening hours, your dietary needs and
+        getting to the terminal or gate in time."""
+        return await run(ctx, lambda c: api.my_groundtime(c))
+
+    @mcp.tool(annotations=QLOO)
+    async def ask(question: str, ctx: Context) -> dict:
+        """Traveller: ask the Groundtime concierge about your wait in plain words. It plans
+        with the tools above and names nothing they didn't return; if it can't, you get the
+        checked plan written out instead."""
+        return await run(ctx, lambda c: api.ask(c, question))
 
     @mcp.tool(annotations=READ)
     async def my_taste(ctx: Context) -> dict:
-        """Traveller or crew: the things you love and your dietary needs, as you saved them."""
+        """Traveller or crew: the things you love and your dietary needs, as saved."""
         return await run(ctx, lambda c: api.my_taste(c))
 
     @mcp.tool(annotations=WRITE)
@@ -268,9 +176,8 @@ def build_server(
         dietary: list[str] | None = None,
         wind_down: str = "",
     ) -> dict:
-        """Traveller or crew: save up to five things you love (each an id from
-        `taste_search`: {"id", "name", "type"}), dietary needs (vegetarian, vegan, jain,
-        halal, gluten_free) and, for crew, wind_down (quiet or lively). Replaces the profile."""
+        """Traveller or crew: replace your taste: up to five things you love (Qloo ids),
+        dietary needs and, for crew, wind_down (quiet or lively)."""
         body = {"loves": loves or [], "dietary": dietary or [], "wind_down": wind_down or None}
         return await run(ctx, lambda c: api.save_my_taste(c, body))
 
@@ -281,129 +188,59 @@ def build_server(
         urn:entity:podcast or urn:entity:place."""
         return await run(ctx, lambda c: api.taste_search(c, query, kind))
 
+    # -- Crew ---------------------------------------------------------------
+
+    @mcp.tool(annotations=READ)
+    async def my_flights(ctx: Context) -> dict:
+        """Crew: your duty days for the week ahead, each flight with any recorded delay."""
+        return await run(ctx, lambda c: api.my_flights(c))
+
     @mcp.tool(annotations=QLOO)
-    async def my_layover(ctx: Context, pairing_id: str = "") -> dict:
+    async def my_layover(ctx: Context) -> dict:
         """Crew: places to eat near the crew hotel on your next night stop, within your rest
-        (free time, sleep before the next report). Staff: name the pairing; the brief never
-        says whose dietary needs are whose."""
-        return await run(ctx, lambda c: api.my_layover(c, pairing_id))
+        (free time, sleep before the next report). A delay moves the evening with it."""
+        return await run(ctx, lambda c: api.my_layover(c))
+
+    # -- Customer care ------------------------------------------------------
+
+    @mcp.tool(annotations=READ)
+    async def flight_board(ctx: Context, date: str = "") -> list:
+        """Customer care: every departure on `date` (YYYY-MM-DD, today if empty) with its
+        delay and how many Groundtime travellers are on it."""
+        return await run(ctx, lambda c: api.flight_board(c, date))
+
+    @mcp.tool(annotations=WRITE)
+    async def record_delay(
+        flight_id: str, delay_minutes: int, ctx: Context, reason: str = ""
+    ) -> dict:
+        """Customer care: record a delay as operations confirm it (e.g. KS434-2026-10-30,
+        240), replacing any earlier one; 0 clears it. Every plan on the flight changes."""
+        return await run(ctx, lambda c: api.record_delay(c, flight_id, delay_minutes, reason))
 
     @mcp.tool(annotations=READ)
     async def delayed_flights(ctx: Context) -> list:
-        """Customer care and operations staff: delayed flights still to leave, with how many
-        are booked and how many have Groundtime."""
+        """Customer care: delayed flights still to leave, with how many are booked and how
+        many have Groundtime."""
         return await run(ctx, lambda c: api.delayed_flights(c))
 
     @mcp.tool(annotations=QLOO)
     async def flight_care(flight_id: str, ctx: Context) -> dict:
-        """Customer care and operations staff: every Groundtime traveller waiting for a
-        flight (e.g. KS434-2026-10-13), with their plan; dietary needs show only as met."""
+        """Customer care: every Groundtime traveller waiting for a flight, with their plan;
+        dietary needs show only as met."""
         return await run(ctx, lambda c: api.flight_care(c, flight_id))
 
-    @mcp.tool(annotations=READ)
-    async def my_roster(ctx: Context) -> dict:
-        """Crew: your own pairings, duty days and duty clock."""
-        return await run(ctx, lambda c: api.my_roster(c))
-
-    @mcp.tool(annotations=READ)
-    async def operations_overview(ctx: Context, start: str = "") -> dict:
-        """A week of the operation at a glance, from ``start`` (YYYY-MM-DD; today if
-        empty): every flight with its airline, aircraft and crew, who is reported
-        unavailable when, and the open disruptions on each flight. For the reporting desk
-        and crew control."""
-        return await run(ctx, lambda c: api.operations(c, start))
-
-    @mcp.tool(annotations=READ)
-    async def my_reports(ctx: Context, scope: str = "mine", limit: int = 30) -> list:
-        """Reports and how each stands, newest first: still being checked, refused (and
-        why), or the disruption it became. scope "mine" (what you filed), "crew" (what
-        crew filed about themselves, for the reporting desk and crew control) or "leave"
-        (planned leave booked by admins)."""
-        return await run(ctx, lambda c: api.my_reports(c, scope, limit))
-
-    @mcp.tool(annotations=READ)
-    async def report_reference(ctx: Context) -> dict:
-        """Reporters, controllers and approvers: the crew, flights, aircraft, gates and
-        stations a report can name."""
-        return await run(ctx, lambda c: api.reference(c))
-
-    @mcp.tool(annotations=READ)
-    async def rule_thresholds(ctx: Context) -> list:
-        """The legality rules' adjustable thresholds: current value, allowed range (never
-        looser than regulation) and the rule's text."""
-        return await run(ctx, lambda c: api.thresholds(c))
-
-    @mcp.tool(annotations=COMMIT)
-    async def set_rule_threshold(
-        rule_id: str, param: str, value: float, expected: float, reason: str, ctx: Context
-    ) -> dict:
-        """Admin: change one threshold from the value you saw (`expected`) to `value`, saying
-        why. Only stricter values, or the regulatory one, are accepted; the change is
-        audited and the engine uses it within a minute."""
-        return await run(
-            ctx, lambda c: api.set_threshold(c, rule_id, param, value, expected, reason)
-        )
-
-    @mcp.tool(annotations=READ)
-    async def activity_log(ctx: Context, limit: int = 50) -> list:
-        """Admin: the latest audit events across the system, newest first."""
-        return await run(ctx, lambda c: api.activity(c, limit))
-
-    @mcp.tool(annotations=COMMIT)
-    async def revoke_report(disruption_id: str, reason: str, ctx: Context) -> dict:
-        """Admin: withdraw a report filed in error (a reporter's report, a crew member's own
-        unavailability or planned leave), saying why. Only while nothing has been done about
-        it: reported, being planned, or a plan waiting for approval (that plan is withdrawn
-        too). Once cover is approved, crew control resolves it instead. The crew it named
-        count as available again."""
-        return await run(ctx, lambda c: api.revoke_report(c, disruption_id, reason))
+    # -- Admin --------------------------------------------------------------
 
     @mcp.tool(annotations=READ)
     async def team_accounts(ctx: Context) -> list:
-        """Admin: the team's sign-ins, roles, and whether you may reset each password."""
+        """Admin: every sign-in, its roles, and whether you may reset its password."""
         return await run(ctx, lambda c: api.team_accounts(c))
 
     @mcp.tool(annotations=COMMIT)
     async def reset_password(username: str, ctx: Context) -> dict:
-        """Admin: give a team member a new random password, returned once. An admin resets
-        crew, reporters, controllers, approvers and auditors; only a super admin resets an
-        admin. Nobody resets their own here, nor the speaker device's."""
+        """Admin: give an account a new random password, returned once. Not your own, and
+        not another admin's."""
         return await run(ctx, lambda c: api.reset_password(c, username))
-
-    @mcp.tool(annotations=READ)
-    async def alert_addresses(ctx: Context) -> list:
-        """Admin: the email addresses receiving alerts, the role each receives, and whether
-        it has been confirmed."""
-        return await run(ctx, lambda c: api.alert_addresses(c))
-
-    @mcp.tool(annotations=OUTWARD)
-    async def add_alert_address(email: str, role: str, ctx: Context) -> dict:
-        """Admin: send one role's alerts (controller: options ready or a plan sent back;
-        approver: a plan waiting), or one operational team's (gate_control, station_ops,
-        flight_info, ops_monitoring, maintenance_control, crew_records, customer_care: the
-        disruptions that team must act on), to an email address. AWS asks the address to
-        confirm first. Limited to a few new addresses a day."""
-        return await run(ctx, lambda c: api.add_alert_address(c, email, role))
-
-    @mcp.tool(annotations=COMMIT)
-    async def remove_alert_address(subscription_id: str, ctx: Context) -> dict:
-        """Admin: stop sending alerts to an address (its id from `alert_addresses`). An
-        address never confirmed lapses after three days but stays listed, and counts
-        toward the limit, until it is removed here."""
-        return await run(ctx, lambda c: api.remove_alert_address(c, subscription_id))
-
-    @mcp.tool(annotations=READ)
-    async def list_crew_tools(ctx: Context) -> list:
-        """The deterministic crew-operations tools the signed-in person may call directly
-        with `crew_tool`, with their input schemas."""
-        return await run(ctx, lambda c: api.list_tools(c))
-
-    @mcp.tool(annotations=READ)
-    async def crew_tool(name: str, ctx: Context, arguments: dict | None = None) -> dict:
-        """Call one deterministic tool by name (see `list_crew_tools`) with JSON arguments,
-        e.g. name="find_options", arguments={"crew_id": "C-1042"}. Structured data, no
-        model involved."""
-        return await run(ctx, lambda c: api.run_tool(c, name, arguments))
 
     return mcp
 
@@ -412,53 +249,30 @@ def from_environment(host: str = "127.0.0.1") -> FastMCP:
     """The deployed server: settings from the environment the stack sets."""
     import boto3
 
-    from crewops.agent.breaker import MODEL_BREAKER, GuardedClient
-    from crewops.agent.memory import ConversationMemory, memory_client
-    from crewops.agent.models import bedrock_runtime
-    from crewops.agent.service import build
     from crewops.auth.accounts import Accounts
+    from crewops.bedrock import MODEL_BREAKER, GuardedClient, bedrock_runtime
     from crewops.config import Settings
-    from crewops.notify.subscriptions import AlertSubscriptions
-    from crewops.store.ops_store import table_for
+    from crewops.network import network
+    from crewops.store import table_for
     from crewops.store.taste import TableCache
     from crewops.store.users import get_profile
     from crewops.taste.qloo import client_from_settings
 
     settings = Settings.from_env()
-    if not (settings.issuer and settings.user_pool_client_id and settings.ingest_queue_url):
-        raise SystemExit(
-            "CREWOPS_USER_POOL_ID, CREWOPS_USER_POOL_CLIENT_ID and CREWOPS_INGEST_QUEUE_URL "
-            "must be set"
-        )
+    if not (settings.issuer and settings.user_pool_client_id):
+        raise SystemExit("CREWOPS_USER_POOL_ID and CREWOPS_USER_POOL_CLIENT_ID must be set")
     table = table_for(settings)
     session = boto3.Session(region_name=settings.aws_region)
-    sqs = session.client("sqs")
-
-    def send(report: dict) -> None:
-        sqs.send_message(QueueUrl=settings.ingest_queue_url, MessageBody=json.dumps(report))
-
-    memory = (
-        ConversationMemory(memory_client(settings.aws_region), settings.memory_id)
-        if settings.memory_id
-        else None
-    )
-    alerts = (
-        AlertSubscriptions(session.client("sns"), settings.alerts_topic_arn, table)
-        if settings.alerts_topic_arn
-        else None
-    )
-    accounts = Accounts(session.client("cognito-idp"), settings.user_pool_id or "")
     qloo = client_from_settings(settings, cache=TableCache(table), session=session)
-    concierge = GuardedClient(bedrock_runtime(settings.aws_region, 15.0), MODEL_BREAKER)
-    api = CrewOpsApi(
+    concierge = GuardedClient(bedrock_runtime(settings.aws_region), MODEL_BREAKER)
+    real_time = os.environ.get("CREWOPS_REAL_TIME") == "1"
+    api = GroundtimeApi(
         table,
-        lambda: build(settings, table),
-        send,
-        memory=memory,
-        alerts=alerts,
-        accounts=accounts,
+        network,
         qloo=qloo,
-        concierge_model=(concierge, settings.advisor_model_id),
+        concierge_model=(concierge, settings.concierge_model_id),
+        accounts=Accounts(session.client("cognito-idp"), settings.user_pool_id or ""),
+        clock=(lambda: datetime.now(UTC)) if real_time else None,
     )
     gate = Gate(
         TokenVerifier(settings.issuer, settings.user_pool_client_id),

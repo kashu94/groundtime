@@ -20,8 +20,8 @@ def seed():
     return load_seed()
 
 
-def member(username="ann", name="Ann Shah", roles=("approver",), crew_id=None, desk=None):
-    return TeamMember(username, name, frozenset(Role(r) for r in roles), crew_id, desk)
+def member(username="ann", name="Ann Shah", roles=("customer_care",), crew_id=None, tr=None):
+    return TeamMember(username, name, frozenset(Role(r) for r in roles), crew_id, tr)
 
 
 # -- Team file --------------------------------------------------------------------------
@@ -31,9 +31,8 @@ def test_demo_team_is_valid_and_covers_every_role(seed):
     team = load_team()
     assert validate_team(team, seed) == []
     assert {r for m in team for r in m.roles} == set(Role)
-    controllers = [m for m in team if Role.CONTROLLER in m.roles]
-    assert sorted(m.desk for m in controllers) == ["desk-1", "desk-2", "desk-3"]
-    assert len([m for m in team if Role.APPROVER in m.roles]) == 3
+    travellers = [m for m in team if Role.TRAVELLER in m.roles]
+    assert sorted(m.traveller_id for m in travellers) == [f"TR-100{i}" for i in range(1, 5)]
 
 
 @pytest.mark.parametrize(
@@ -42,9 +41,9 @@ def test_demo_team_is_valid_and_covers_every_role(seed):
         (member(roles=("crew",)), "crew login needs the crew id"),
         (member(roles=("crew",), crew_id="C-1042"), "C-1042 is A. Nair, not Ann Shah"),
         (member(crew_id="C-1042"), "only a crew login"),
-        (member(roles=("controller",)), "a controller needs a desk"),
-        (member(roles=("controller",), desk="desk-1"), "is Ananya Iyer's desk"),
-        (member(desk="desk-1"), "only a controller holds a desk"),
+        (member(roles=("traveller",)), "needs a traveller id"),
+        (member(roles=("traveller",), tr="T-1"), "needs a traveller id"),
+        (member(tr="TR-1001"), "only a traveller login"),
         (member(name="A. Shah"), "written like a crew member's name"),
     ],
 )
@@ -95,8 +94,8 @@ def claims(**overrides):
 
 PROFILES = {
     "crew1042": {"crew_id": "C-1042"},
-    "ananya": {"desk": "desk-1"},
-    "meera": {"crew_id": "C-9999", "desk": "desk-9"},
+    "tr1001.kapoor": {"traveller_id": "TR-1001"},
+    "neha": {"crew_id": "C-9999", "traveller_id": "TR-9999"},
 }
 
 
@@ -109,24 +108,24 @@ def test_crew_caller_takes_crew_id_from_the_profile():
     assert who.user_id == "crew1042" and who.roles == {Role.CREW} and who.crew_id == "C-1042"
 
 
-def test_controller_gets_their_desk_and_others_get_neither():
-    who = caller(claims(username="ananya", **{"cognito:groups": ["controller"]}))
-    assert who.desk == "desk-1" and who.crew_id is None
-    approver = caller(claims(username="meera", **{"cognito:groups": ["approver"]}))
-    assert approver.crew_id is None and approver.desk is None  # profile ignored for their role
+def test_traveller_gets_their_record_and_others_get_neither():
+    who = caller(claims(username="tr1001.kapoor", **{"cognito:groups": ["traveller"]}))
+    assert who.traveller_id == "TR-1001" and who.crew_id is None
+    care = caller(claims(username="neha", **{"cognito:groups": ["customer_care"]}))
+    assert care.crew_id is None and care.traveller_id is None  # ignored for their role
 
 
 @pytest.mark.parametrize(
     ("groups", "roles"),
     [
-        ("[controller auditor]", {Role.CONTROLLER, Role.AUDITOR}),
-        ('["controller", "auditor"]', {Role.CONTROLLER, Role.AUDITOR}),
-        ("controller auditor", {Role.CONTROLLER, Role.AUDITOR}),
-        ('["auditor,super_admin"]', set()),  # one odd name, not two roles
+        ("[customer_care admin]", {Role.CUSTOMER_CARE, Role.ADMIN}),
+        ('["customer_care", "admin"]', {Role.CUSTOMER_CARE, Role.ADMIN}),
+        ("customer_care admin", {Role.CUSTOMER_CARE, Role.ADMIN}),
+        ('["customer_care,admin"]', set()),  # one odd name, not two roles
     ],
 )
 def test_groups_passed_on_as_text(groups, roles):
-    c = claims(username="ananya", **{"cognito:groups": groups})
+    c = claims(username="neha", **{"cognito:groups": groups})
     if roles:
         assert caller(c).roles == roles
     else:
@@ -144,7 +143,7 @@ def test_groups_passed_on_as_text(groups, roles):
         ({"username": ""}, "names no user"),
         ({"cognito:groups": ["pilots"]}, "holds no role"),
         ({"username": "nobody"}, "linked to no crew record"),
-        ({"username": "x", "cognito:groups": ["controller"]}, "holds no desk"),
+        ({"username": "x", "cognito:groups": ["traveller"]}, "no passenger record"),
     ],
 )
 def test_unusable_claims_are_refused(override, message):
@@ -153,7 +152,7 @@ def test_unusable_claims_are_refused(override, message):
 
 
 def test_issuer_and_client_must_be_given():
-    forged = claims(iss="https://elsewhere", **{"cognito:groups": ["super_admin"]})
+    forged = claims(iss="https://elsewhere", **{"cognito:groups": ["admin"]})
     with pytest.raises(TypeError):
         caller_from_claims(forged, PROFILES.get)  # no silent default that skips the checks
     with pytest.raises(AuthError, match="must be given"):
@@ -255,14 +254,13 @@ def test_sync_creates_then_changes_nothing(ops_table):
     plan = plan_team(cognito, POOL, ops_table, team, password)
     assert asked == []  # nothing is asked for until a step runs
     apply(plan)
-    assert len(cognito.users) == len(team) == 28 and set(cognito.passwords.values()) == {
+    assert len(cognito.users) == len(team) == 17 and set(cognito.passwords.values()) == {
         "Correct-Horse-9"
     }
-    assert cognito.groups["ananya.iyer"] == {"controller"}
     assert cognito.groups["tr1001.kapoor"] == {"traveller"}
     assert cognito.groups["neha.joshi"] == {"customer_care"}
     assert get_profile(ops_table, "c1042.nair")["crew_id"] == "C-1042"
-    assert get_profile(ops_table, "ananya.iyer")["desk"] == "desk-1"
+    assert get_profile(ops_table, "tr1001.kapoor")["traveller_id"] == "TR-1001"
     again = plan_team(cognito, POOL, ops_table, team, password)
     assert again.steps == [] and again.actions == []
 
@@ -270,18 +268,18 @@ def test_sync_creates_then_changes_nothing(ops_table):
 def test_sync_fixes_drift(ops_table):
     cognito, team = FakeCognito(), load_team()
     apply(plan_team(cognito, POOL, ops_table, team, lambda: "Correct-Horse-9"))
-    cognito.groups["meera.bhatt"] |= {"admin"}  # someone granted an extra role by hand
-    cognito.users["rohit.malhotra"]["name"] = "R. M."
-    cognito.disabled.add("divya.rao")
-    cognito.status["farah.qureshi"] = "FORCE_CHANGE_PASSWORD"  # a create whose password never set
+    cognito.groups["neha.joshi"] |= {"admin"}  # someone granted an extra role by hand
+    cognito.users["tr1002.fernandes"]["name"] = "S. F."
+    cognito.disabled.add("tr1003.shah")
+    cognito.status["tr1004.das"] = "FORCE_CHANGE_PASSWORD"  # a create whose password never set
     plan = plan_team(cognito, POOL, ops_table, team, lambda: "Correct-Horse-9")
-    assert "remove meera.bhatt from admin" in plan.actions
-    assert "rename rohit.malhotra to Rohit Malhotra" in plan.actions
-    assert "enable divya.rao" in plan.actions
-    assert "set the password of farah.qureshi (it has no usable one)" in plan.actions
+    assert "remove neha.joshi from admin" in plan.actions
+    assert "rename tr1002.fernandes to Sara Fernandes" in plan.actions
+    assert "enable tr1003.shah" in plan.actions
+    assert "set the password of tr1004.das (it has no usable one)" in plan.actions
     apply(plan)
-    assert cognito.groups["meera.bhatt"] == {"approver"} and "divya.rao" not in cognito.disabled
-    assert cognito.status["farah.qureshi"] == "CONFIRMED"
+    assert cognito.groups["neha.joshi"] == {"customer_care"}
+    assert "tr1003.shah" not in cognito.disabled and cognito.status["tr1004.das"] == "CONFIRMED"
     assert plan_team(cognito, POOL, ops_table, team, lambda: "x").steps == []
 
 
@@ -303,7 +301,7 @@ def test_leaving_the_file_removes_access_and_prune_deletes(ops_table):
 def test_a_profile_with_no_account_is_removed(ops_table):
     from crewops.store.users import put_profile
 
-    put_profile(ops_table, profile_item("ghost", "Ghost Writer", ["crew"], "C-1042", None))
+    put_profile(ops_table, profile_item("ghost", "Ghost Writer", ["crew"], "C-1042"))
     plan = plan_team(FakeCognito(), POOL, ops_table, [], lambda: "x")
     assert plan.actions == ["delete the profile of ghost (no such account)"]
 
@@ -315,15 +313,11 @@ def test_reset_passwords(ops_table):
         cognito, POOL, ops_table, team, lambda: "Battery-Staple-7", reset_passwords=True
     )
     apply(plan)
-    speaker = next(m.username for m in team if Role.SPEAKER in m.roles)
-    people = {u: p for u, p in cognito.passwords.items() if u != speaker}
-    assert set(people.values()) == {"Battery-Staple-7"} and plan.needs_password
-    # the speaker keeps its own password: the hosted app and the TV sign in with it
-    assert cognito.passwords[speaker] == "Correct-Horse-9"
+    assert set(cognito.passwords.values()) == {"Battery-Staple-7"} and plan.needs_password
 
 
 def test_profile_never_holds_contact_details():
-    item = profile_item("ann", "Ann Shah", ["approver"], None, None)
+    item = profile_item("ann", "Ann Shah", ["customer_care"])
     assert set(item) == {"pk", "sk", "entity", "username", "name", "roles"}
 
 
@@ -356,24 +350,23 @@ def test_two_pools_with_one_name_is_an_error():
 
 
 def test_role_combinations_and_name_forms(seed):
-    assert any(
-        "nobody both submits and approves" in e
-        for e in validate_team(
-            [member(roles=("controller", "approver"), desk="desk-1", name="Ananya Iyer")], seed
-        )
-    )
     crew_admin = member(roles=("crew", "admin"), crew_id="C-1042", name="A. Nair")
     assert any("holds no other role" in e for e in validate_team([crew_admin], seed))
-    # A speaker is a device, so it can never also be a person with a role.
-    speaker_admin = member(
-        username="ops.speaker", name="Ops Room Speaker", roles=("speaker", "admin")
-    )
-    assert any("a speaker is a device" in e for e in validate_team([speaker_admin], seed))
-    assert (
-        validate_team(
-            [member(username="ops.speaker", name="Ops Room Speaker", roles=("speaker",))], seed
-        )
-        == []
-    )
+    traveller_care = member(roles=("traveller", "customer_care"), tr="TR-1001")
+    assert any("holds no other role" in e for e in validate_team([traveller_care], seed))
+    assert validate_team([member(roles=("customer_care", "admin"))], seed) == []
     for name in ("A.Shah", "Shah A."):
         assert validate_team([member(name=name)], seed)
+
+
+def test_an_admin_resets_anyone_but_admins_and_themselves():
+    from crewops.auth.accounts import AccountError, may_reset
+
+    admin = {Role.ADMIN}
+    may_reset("priya", admin, "neha", {Role.CUSTOMER_CARE})
+    may_reset("priya", admin, "tr1", {Role.TRAVELLER})
+    for target, roles in (("priya", admin), ("other", admin)):
+        with pytest.raises(AccountError):
+            may_reset("priya", admin, target, roles)
+    with pytest.raises(AccountError):
+        may_reset("neha", {Role.CUSTOMER_CARE}, "tr1", {Role.TRAVELLER})
