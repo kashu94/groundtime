@@ -63,10 +63,6 @@ export function Panel({
   );
 }
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx("rounded-lg border border-line bg-surface p-5", className)}>{children}</section>;
-}
-
 export function Field({
   label,
   hint,
@@ -84,71 +80,7 @@ export function Field({
   );
 }
 
-// Pale tint with dark ink of the same hue. Red only where someone must act now, amber where a
-// decision waits, green once it is done; everything settled is neutral.
-const NEGATIVE = "bg-critical-soft text-[#831c1e] ring-[#f5c2bd]";
-const WAITING = "bg-pending-soft text-[#92400e] ring-[#fde68a]";
-const READY = "bg-accent-soft text-[#173f63] ring-[#cfe0ef]";
-const DONE = "bg-ok-soft text-[#04250e] ring-[#b7e9c8]";
-const NEUTRAL = "bg-sunken text-[#353736] ring-line";
-const LABEL: Record<string, string> = { RESOLVING: "Awaiting sign-off", DECISION_NEEDED: "Decision needed" };
-const STATUS: Record<string, string> = {
-  REPORTED: NEGATIVE,
-  OPTIONS_READY: READY,
-  TO_RESOLVE: READY,
-  DECISION_NEEDED: WAITING,
-  SUBMITTED: WAITING,
-  RESOLVING: WAITING,
-  COMMITTED: DONE,
-  CLOSED: NEUTRAL,
-  RECORDED: NEUTRAL,
-  REJECTED: NEGATIVE,
-  QUEUED: NEUTRAL,
-  WITHDRAWN: NEUTRAL,
-  STALE: WAITING,
-  REVOKED: NEUTRAL,
-};
-
-export function Status({ value }: { value: string }) {
-  return (
-    <span
-      className={cx(
-        "inline-flex shrink-0 items-center whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset",
-        STATUS[value] ?? NEUTRAL,
-      )}
-    >
-      {LABEL[value] ?? value.charAt(0) + value.slice(1).replace(/_/g, " ").toLowerCase()}
-    </span>
-  );
-}
-
-const SEVERITY = {
-  high: { label: "High", tone: "bg-critical-soft text-[#831c1e] ring-[#f5c2bd]", dot: "bg-critical" },
-  medium: { label: "Medium", tone: "bg-pending-soft text-[#92400e] ring-[#fde68a]", dot: "bg-pending" },
-  low: { label: "Low", tone: "bg-sunken text-[#353736] ring-line", dot: "bg-[#8a8d90]" },
-} as const;
-
-/** How serious a disruption is (high, medium or low), with why on hover. */
-export function SeverityBadge({ severity }: { severity?: { level: string; reasons?: string[] } | null }) {
-  if (!severity) return null;
-  const s = SEVERITY[severity.level as keyof typeof SEVERITY];
-  if (!s) return null;
-  const why = (severity.reasons ?? []).join("; ");
-  return (
-    <span
-      title={why ? `${s.label} severity: ${why}` : `${s.label} severity`}
-      className={cx(
-        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset",
-        s.tone,
-      )}
-    >
-      <span className={cx("h-1.5 w-1.5 rounded-full", s.dot)} />
-      {s.label}
-    </span>
-  );
-}
-
-/** Ids, times and stations in monospace, so C-1042 and P-2291 read at a glance. */
+/** Flight numbers, times and ids in monospace, so KS434 and 18:40 read at a glance. */
 export function Mono({ children, className }: { children: ReactNode; className?: string }) {
   return <span className={cx("font-mono text-[0.92em] tracking-tight", className)}>{children}</span>;
 }
@@ -183,34 +115,8 @@ export function Empty({ icon, children }: { icon?: ReactNode; children: ReactNod
   );
 }
 
-export function rupees(value: unknown): string {
-  return typeof value === "number" ? `₹${value.toLocaleString("en-IN")}` : "—";
-}
-
-export function clock(iso: string | null | undefined): string {
-  return iso ? iso.slice(11, 16) + "Z" : "—";
-}
-
 export function day(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
-}
-
-/** The day after an ISO date ("2026-10-31" -> "2026-11-01"); "" stays "". */
-export function nextDay(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
-/** On a form's "from" field: its "until" field may not start before it (the same day, or
- * the same moment for a time, is the earliest), so move its minimum and clear a value that no
- * longer fits. Works for date and datetime-local inputs alike. */
-export function untilFrom(from: HTMLInputElement, untilName: string) {
-  const until = from.form?.elements.namedItem(untilName);
-  if (!(until instanceof HTMLInputElement) || !from.value) return;
-  until.min = from.value;
-  if (until.value && until.value < from.value) until.value = "";
 }

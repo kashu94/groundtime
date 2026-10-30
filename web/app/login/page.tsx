@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { NightApproach } from "@/components/login-art";
 import { Button, Field, Notice, Spinner } from "@/components/ui";
-import { signIn, signOut, tool } from "@/lib/client";
+import { signIn, signOut } from "@/lib/client";
 import { homeFor, type Me } from "@/lib/roles";
 
 /** Current session, fetched without the usual redirect to sign-in (we're already on it). */
@@ -35,20 +35,13 @@ function nextPage(): string | null {
   return url.pathname + url.search + url.hash;
 }
 
-// The rules every cover is checked against (data/seed/rules.json), and the airlines on the desk.
-const RULES = [
-  ["FDP", "Flight duty period of 13 h, less 30 min per sector after the second"],
-  ["Duty", "60 duty hours in any 7 days"],
-  ["Flight", "100 block hours in any 28 days"],
-  ["Rest", "12 h rest between release and the next report"],
-  ["Rating", "A valid rating for the aircraft type"],
-  ["Certificates", "Every certificate valid on the duty date"],
-  ["Base", "Reserves from their own base, or positioned"],
-] as const;
-const AIRLINES = [
-  ["Deccan Express", "#0284c7"],
-  ["Konkan Skyways", "#ea580c"],
-  ["Nilgiri Connect", "#059669"],
+// The demo sign-ins (data/team/demo_team.json), one of each kind. Passwords come from
+// whoever set the accounts up.
+const DEMO = [
+  ["Traveller", "tr1001.kapoor … tr1004.das"],
+  ["Crew", "c1042.nair"],
+  ["Customer care", "neha.joshi"],
+  ["Admin", "priya.desai"],
 ] as const;
 
 export default function Login() {
@@ -69,13 +62,6 @@ export default function Login() {
     try {
       await signIn(String(form.get("username") ?? ""), String(form.get("password") ?? ""));
       const me = await signedIn();
-      if (me && (me.roles.includes("controller") || me.roles.includes("approver"))) {
-        // "while you were away" summary, once per sign-in rather than per tab. Best effort;
-        // must not block sign-in.
-        await tool("welcome_back")
-          .then((w) => sessionStorage.setItem("crewops-welcome", JSON.stringify(w)))
-          .catch(() => undefined);
-      }
       window.location.replace(me ? (nextPage() ?? homeFor(me.roles)) : "/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
@@ -100,29 +86,21 @@ export default function Login() {
             Every hour on the ground, worth having.
           </h2>
           <p className="mt-3 max-w-md text-base leading-relaxed text-[#d4dde8]">
-            When a flight is delayed, passengers and crew get their safe free time planned with Qloo: places to see and
-            eat, the terminal, and films that end before the gate closes.
+            When a flight is delayed, Groundtime plans the wait around what you love, with Qloo: somewhere to see and
+            eat near the airport, the best of the terminal, and a film that ends before boarding. Every stop is checked
+            for opening hours, your dietary needs and getting back in time.
           </p>
-          <p className="mt-10 text-sm font-medium text-white">
-            Behind it, crew control: every cover is checked against seven rules
-          </p>
-          <dl className="mt-3 grid grid-cols-[7rem_1fr] gap-x-4 gap-y-2 rounded-lg bg-[#040a18]/55 p-4 text-sm ring-1 ring-white/10">
-            {RULES.map(([name, text]) => (
-              <div key={name} className="contents">
-                <dt className="text-[#b9c6d6]">{name}</dt>
-                <dd className="text-[#eef2f7]">{text}</dd>
+          <p className="mt-10 text-sm font-medium text-white">Try it as</p>
+          <dl className="mt-3 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 rounded-lg bg-[#040a18]/55 p-4 text-sm ring-1 ring-white/10">
+            {DEMO.map(([role, user]) => (
+              <div key={role} className="contents">
+                <dt className="text-[#b9c6d6]">{role}</dt>
+                <dd className="font-mono text-[#eef2f7]">{user}</dd>
               </div>
             ))}
           </dl>
         </div>
-        <ul className="relative flex flex-wrap gap-x-6 gap-y-2 text-sm text-[#d4dde8]">
-          {AIRLINES.map(([name, color]) => (
-            <li key={name} className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-              {name}
-            </li>
-          ))}
-        </ul>
+        <p className="relative text-sm text-[#d4dde8]">Crew get the same care on a layover.</p>
       </section>
 
       <section className="flex items-center justify-center px-4 py-12">
@@ -134,9 +112,7 @@ export default function Login() {
             <span className="text-[15px] font-semibold">Groundtime</span>
             <span className="text-sm text-muted">with Qloo</span>
           </div>
-          <p className="-mt-6 mb-8 text-sm text-muted lg:hidden">
-            Every hour on the ground, worth having. Delayed passengers and crew, planned with Qloo.
-          </p>
+          <p className="-mt-6 mb-8 text-sm text-muted lg:hidden">Every hour on the ground, worth having.</p>
           {current && (
             <div className="mb-6 rounded-lg border border-line bg-sunken p-4">
               <p className="text-sm text-foreground">
@@ -190,6 +166,9 @@ export default function Login() {
               {busy ? <Spinner /> : <Lock size={14} />} Sign in
             </Button>
           </form>
+          <p className="mt-6 text-xs text-muted lg:hidden">
+            Try it as a traveller (tr1001.kapoor), crew (c1042.nair), customer care (neha.joshi) or admin (priya.desai).
+          </p>
         </div>
       </section>
     </main>

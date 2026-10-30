@@ -46,13 +46,13 @@ describe("MCP connections", () => {
 
   it("several calls on a session that ended share one new connection", async () => {
     const token = `token-${Math.random()}`;
-    await callTool(token, "disruptions", {}); // connection 1, cached
+    await callTool(token, "flight_board", {}); // connection 1, cached
     const first = state.connections;
     state.broken.add(first); // AgentCore ends the session
     const answers = await Promise.all([
-      callTool(token, "disruptions", {}),
-      callTool(token, "my_queue", {}),
-      callTool(token, "disruptions", {}),
+      callTool(token, "flight_board", {}),
+      callTool(token, "delayed_flights", {}),
+      callTool(token, "flight_board", {}),
     ]);
     // One replacement, used by all three: no retry closed another's fresh connection.
     expect(state.connections).toBe(first + 1);

@@ -8,8 +8,8 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variabl
 export const metadata: Metadata = {
   title: "Groundtime",
   description:
-    "Every hour on the ground, worth having: delayed passengers and crew get their safe free time planned with Qloo, " +
-    "and crew control keeps the operation running.",
+    "Every hour on the ground, worth having: when a flight is delayed, Groundtime plans the wait around what you " +
+    "love, with Qloo.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

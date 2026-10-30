@@ -5,15 +5,14 @@ import { cookies } from "next/headers";
 import { refresh, type Tokens } from "./cognito";
 import { expiresSoon } from "./tokens";
 
-// The tokens live in httpOnly cookies: page scripts never see the access or refresh
-// token. Only /api/live hands the ID token to the page, for the live-events socket.
+// The tokens live in httpOnly cookies: page scripts never see any of them.
 const ACCESS = "crewops_access";
 const ID = "crewops_id";
 const REFRESH = "crewops_refresh";
 
-// Browser-session cookies (no expiry): closing the browser signs out. A shared ops-room
-// screen must not stay signed in as the last person who used it. The tokens themselves
-// still expire (access and ID after an hour, renewed with the refresh token).
+// Browser-session cookies (no expiry): closing the browser signs out. A shared screen at a
+// customer care desk must not stay signed in as the last person who used it. The tokens
+// themselves still expire (access and ID after an hour, renewed with the refresh token).
 const OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",

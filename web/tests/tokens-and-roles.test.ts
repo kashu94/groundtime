@@ -12,8 +12,8 @@ function jwt(claims: object) {
 
 describe("tokens", () => {
   it("reads claims and expiry without trusting them for anything else", () => {
-    const token = jwt({ username: "rohit", exp: 1000, "cognito:groups": ["controller"] });
-    expect(claimsOf(token)?.username).toBe("rohit");
+    const token = jwt({ username: "neha.joshi", exp: 1000, "cognito:groups": ["customer_care"] });
+    expect(claimsOf(token)?.username).toBe("neha.joshi");
     expect(expiresSoon(token, 900)).toBe(false);
     expect(expiresSoon(token, 950)).toBe(true); // within the 60 s margin
     expect(expiresSoon(undefined, 0)).toBe(true);
@@ -23,37 +23,30 @@ describe("tokens", () => {
 
 describe("roles and views", () => {
   it("sends each role to its home", () => {
-    expect(homeFor(["crew"])).toBe("/crew");
-    expect(homeFor(["approver"])).toBe("/approvals");
-    expect(homeFor(["controller"])).toBe("/console");
-    expect(homeFor(["admin"])).toBe("/admin");
-    expect(homeFor(["reporter"])).toBe("/operations");
     expect(homeFor(["traveller"])).toBe("/trip");
+    expect(homeFor(["crew"])).toBe("/crew");
     expect(homeFor(["customer_care"])).toBe("/care");
+    expect(homeFor(["admin"])).toBe("/admin");
+    expect(homeFor(["admin", "customer_care"])).toBe("/admin");
   });
 
   it("shows only the views a role uses", () => {
-    expect(viewsFor(["crew"]).map((v) => v.href)).toEqual(["/crew", "/assistant"]);
-    expect(viewsFor(["controller"]).map((v) => v.href)).toEqual(["/console", "/disruptions", "/care", "/assistant"]);
-    expect(viewsFor(["approver"]).map((v) => v.href)).toEqual(["/disruptions", "/approvals", "/care", "/assistant"]);
-    expect(viewsFor(["admin"]).map((v) => v.href)).toEqual(["/disruptions", "/care", "/admin", "/assistant"]);
-    expect(viewsFor(["reporter"]).map((v) => v.href)).toEqual(["/operations", "/report", "/assistant"]);
-    expect(viewsFor(["customer_care"]).map((v) => v.href)).toEqual(["/care", "/assistant"]);
-  });
-
-  it("shows a traveller only their trip and the assistant", () => {
-    expect(viewsFor(["traveller"]).map((v) => v.href)).toEqual(["/trip", "/assistant"]);
+    expect(viewsFor(["traveller"]).map((v) => v.href)).toEqual(["/trip"]);
+    expect(viewsFor(["crew"]).map((v) => v.href)).toEqual(["/crew"]);
+    expect(viewsFor(["customer_care"]).map((v) => v.href)).toEqual(["/care"]);
+    expect(viewsFor(["admin"]).map((v) => v.href)).toEqual(["/admin"]);
+    expect(viewsFor(["admin", "customer_care"]).map((v) => v.href)).toEqual(["/admin", "/care"]);
     expect(viewsFor(["traveller"])[0]).toMatchObject({ label: "My trip", hint: "Your wait, planned" });
   });
 });
 
 describe("the tool proxy", () => {
   it("forwards only known tools", () => {
-    expect(isTool("approve_plan")).toBe(true);
-    expect(isTool("crew_tool")).toBe(true); // role-checked dispatch on the server
+    expect(isTool("book_trip")).toBe(true);
     expect(isTool("my_groundtime")).toBe(true);
     expect(isTool("flight_care")).toBe(true);
-    expect(isTool("list_crew_tools")).toBe(false);
+    expect(isTool("crew_tool")).toBe(false);
+    expect(isTool("delete_everything")).toBe(false);
     expect(isTool("__proto__")).toBe(false);
     expect(isTool("constructor")).toBe(false);
   });
@@ -73,19 +66,19 @@ describe("the tool proxy", () => {
   it("knows its own site behind proxies, and still nobody else's", () => {
     const req = (origin: string, headers: Record<string, string>) =>
       new Request("http://internal/api/tools/ask", { method: "POST", headers: { origin, ...headers } });
-    const site = "https://crewops.example";
+    const site = "https://groundtime.example";
     // a chain of proxies lists every host it passed; the first is the one the browser used
-    expect(sameOrigin(req(site, { "x-forwarded-host": "crewops.example, internal:3000", host: "internal:3000" }))).toBe(
-      true,
-    );
-    // a proxy that forwards its own name but keeps the browser's Host
-    expect(sameOrigin(req(site, { "x-forwarded-host": "internal:3000", host: "crewops.example" }))).toBe(true);
-    // the default port spelled out
-    expect(sameOrigin(req(site, { "x-forwarded-host": "crewops.example:443", host: "internal:3000" }))).toBe(true);
     expect(
-      sameOrigin(req("https://evil.example", { "x-forwarded-host": "crewops.example", host: "crewops.example" })),
+      sameOrigin(req(site, { "x-forwarded-host": "groundtime.example, internal:3000", host: "internal:3000" })),
+    ).toBe(true);
+    // a proxy that forwards its own name but keeps the browser's Host
+    expect(sameOrigin(req(site, { "x-forwarded-host": "internal:3000", host: "groundtime.example" }))).toBe(true);
+    // the default port spelled out
+    expect(sameOrigin(req(site, { "x-forwarded-host": "groundtime.example:443", host: "internal:3000" }))).toBe(true);
+    expect(
+      sameOrigin(req("https://evil.example", { "x-forwarded-host": "groundtime.example", host: "groundtime.example" })),
     ).toBe(false);
-    expect(sameOrigin(req(site, { "x-forwarded-host": "crewops.example:8443", host: "internal:3000" }))).toBe(false);
+    expect(sameOrigin(req(site, { "x-forwarded-host": "groundtime.example:8443", host: "internal:3000" }))).toBe(false);
   });
 
   it("encodes the runtime ARN in the invocation URL", () => {
